@@ -269,7 +269,7 @@ class SharedFilesTest {
     fun manifestResolvesGenericFileSharesAndNormalLauncher() {
         val context = RuntimeEnvironment.getApplication()
         for (action in listOf(Intent.ACTION_SEND, Intent.ACTION_SEND_MULTIPLE)) {
-            for (mime in listOf("application/zip", "application/x-zip-compressed", "application/epub+zip", "application/fb2", "application/x-fictionbook+xml", "text/xml", "application/octet-stream", "application/pdf", "*/*")) {
+            for (mime in listOf("application/vnd.rar", "application/x-rar-compressed", "application/x-7z-compressed", "application/zip", "application/x-zip-compressed", "application/epub+zip", "application/fb2", "application/x-fictionbook+xml", "text/xml", "application/octet-stream", "application/pdf", "*/*")) {
                 val intent = Intent(action).setType(mime).setPackage(context.packageName)
                 assertTrue(context.packageManager.queryIntentActivities(intent, android.content.pm.PackageManager.MATCH_DEFAULT_ONLY).any { it.activityInfo.name == MainActivity::class.java.name })
             }

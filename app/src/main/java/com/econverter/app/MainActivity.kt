@@ -227,6 +227,16 @@ fun ConverterScreen(vm: ConverterViewModel = viewModel()) {
                 Modifier.widthIn(max = 640.dp).fillMaxWidth().padding(24.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
+                if (vm.pendingSave && vm.outputFiles.isNotEmpty()) {
+                    Text(stringResource(R.string.converted_files, vm.outputFiles.size), style = MaterialTheme.typography.headlineSmall)
+                    vm.outputFiles.forEach { file ->
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                            Text(file.name, style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
+                    HorizontalDivider()
+                }
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text(stringResource(R.string.your_books), style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
                     if (vm.inputFileNames.isNotEmpty()) {

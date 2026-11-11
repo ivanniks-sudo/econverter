@@ -80,6 +80,25 @@ class GmailSharingTest {
     }
 
     @Test
+    fun missingOutputsDoNotLaunchAnEmptyDraftOrFallBackToOriginalInputs() {
+        withBooks { context, directory, books ->
+            val vm = ConverterViewModel()
+            vm.inputUris = listOf(FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", books.first()))
+            vm.outputFiles = listOf(books.last())
+            vm.internalWorkDirectory = directory
+            vm.pendingSave = true
+            books.last().delete()
+            val launch = RecordingContext(context)
+            vm.openGmail(launch)
+            assertNull(launch.launched)
+            assertNull(vm.createShareIntent(context))
+            assertEquals(R.string.status_missing_outputs, vm.status.resourceId)
+            assertTrue(vm.status.isError)
+            assertTrue(books.first().isFile)
+        }
+    }
+
+    @Test
     fun unavailableGmailIsReportedWithoutDiscardingOutputs() {
         withBooks { context, directory, books ->
             val vm = ConverterViewModel()

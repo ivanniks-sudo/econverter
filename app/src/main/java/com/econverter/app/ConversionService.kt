@@ -20,6 +20,18 @@ import kotlin.coroutines.resume
 
 data class ConversionResult(val status: StatusMessage, val files: List<File> = emptyList(), val metadata: BookMetadata? = null)
 
+// Verify the files in the receiving process, too. A success flag alone must never
+// leave the UI claiming that missing/empty outputs can be saved or attached.
+internal fun checkedConversionResult(result: ConversionResult, operation: Int): ConversionResult {
+    if (operation == ConversionService.READ_METADATA) return result
+    val readable = result.files.filter { it.isFile && it.length() > 0 && it.canRead() }
+    return if (readable.size != result.files.size || (result.status.isSuccess && readable.isEmpty())) {
+        result.copy(status = StatusMessage(R.string.status_missing_outputs, isError = true), files = readable)
+    } else {
+        result
+    }
+}
+
 data class BookMetadata(val title: String, val authors: List<String>, val publisher: String, val comments: String) {
     fun toBundle(): Bundle = Bundle().apply {
         putString("title", title)
@@ -108,10 +120,11 @@ class ConversionWorker(
                 if (linked) binder?.unlinkToDeath(death, 0)
                 if (bound) context.unbindService(connection)
                 remote = null
-                if (cancelled || !continuation.isActive || result.files.isEmpty()) {
+                val checked = checkedConversionResult(result, operation)
+                if (cancelled || !continuation.isActive || checked.files.isEmpty()) {
                     directory.deleteRecursively()
                 }
-                if (continuation.isActive) continuation.resume(if (cancelled) ConversionResult(StatusMessage(R.string.status_cancelled)) else result)
+                if (continuation.isActive) continuation.resume(if (cancelled) ConversionResult(StatusMessage(R.string.status_cancelled)) else checked)
             }
 
             death = IBinder.DeathRecipient {

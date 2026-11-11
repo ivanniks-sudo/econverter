@@ -32,6 +32,9 @@ not truncated.
 
 Shared output files are retained for one hour, including across app restarts,
 then become eligible for cleanup.
+Pending results are listed under **Converted files**. Missing, empty, or unreadable
+outputs are reported as an error rather than a successful conversion. Share/Gmail
+verify result URI access before launching the receiving application.
 
 **Cancel** discards all temporary outputs from the current batch, including completed
 books; originals are unchanged.
@@ -83,6 +86,22 @@ matching the existing output-sharing policy. Startup purges abandoned unshared
 imports and expired shared imports. Import failures/cancellation remove partial
 files. A fresh process can reimport the launch Intent if its URI grants remain
 valid; History is still limited to the current app session.
+
+### RAR and 7z sources
+
+The same picker/Share queue also accepts `.rar` (RAR4/RAR5) and `.7z`, including
+multiple archives, solid archives, subdirectories, Unicode book names, and mixed
+ordinary/ZIP/RAR/7z selections. Nested archives are skipped. ZIP decoding is
+unchanged. TAR, TAR.GZ, TGZ, and TAR.XZ are not supported.
+
+The existing byte/book/entry limits and cleanup/sharing policy apply to these
+sources too. RAR4/PPMd may need up to 256 MiB of decoder dictionary memory;
+RAR imports are refused on low-RAM/low-memory devices or when less than 512 MiB
+is available. 7z decoder memory is limited to 64 MiB per decoder; compressed and
+decoded headers are limited to 4 MiB. Encrypted, split/multi-volume, linked or
+unsafe archives and unsupported codec/header variants are rejected. See
+[ARCHIVE_IMPORT.md](ARCHIVE_IMPORT.md) for library/license decisions, exact
+limitations, test coverage, and the measured APK size comparison.
 
 ## Formats and Backends
 

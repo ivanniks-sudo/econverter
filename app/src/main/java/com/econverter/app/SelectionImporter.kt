@@ -1,5 +1,6 @@
 package com.econverter.app
 
+import android.app.ActivityManager
 import android.content.Context
 import android.net.Uri
 import androidx.core.content.FileProvider
@@ -14,7 +15,7 @@ internal data class SelectionImport(
     var unsupported: Int = 0,
     var inaccessible: Int = 0,
     var archives: Int = 0,
-    val issues: MutableList<Pair<String, ZipFailure>> = mutableListOf(),
+    val issues: MutableList<Pair<String, Int>> = mutableListOf(),
 )
 
 internal fun importSelection(
@@ -25,6 +26,7 @@ internal fun importSelection(
     directory: File,
     budget: ZipBudget,
     checkCancelled: () -> Unit,
+    readerFactory: (File, String) -> BookArchiveReader = ::openBookArchive,
 ): SelectionImport {
     val result = SelectionImport()
     for ((index, uri) in candidates.withIndex()) {
@@ -36,13 +38,22 @@ internal fun importSelection(
             }
             val name = getFileName(context, uri)
             val extension = name.substringAfterLast('.', "").lowercase()
-            if (extension == "zip") {
+            if (extension in BOOK_ARCHIVE_EXTENSIONS) {
                 result.archives++
                 val archiveDirectory = File(directory, index.toString())
                 var accepted = false
                 try {
+                    if (extension == "rar") {
+                        val manager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+                        val memory = ActivityManager.MemoryInfo().also(manager::getMemoryInfo)
+                        if (manager.isLowRamDevice || memory.lowMemory || (memory.availMem > 0 && memory.availMem < 512L * 1024 * 1024)) throw ArchiveImportException(ArchiveFailure.LIMIT)
+                    }
                     val extracted = context.contentResolver.openInputStream(uri)?.use {
-                        extractZipBooks(it, archiveDirectory, formats, budget, checkCancelled)
+                        if (extension == "zip") {
+                            extractZipBooks(it, archiveDirectory, formats, budget, checkCancelled)
+                        } else {
+                            extractOtherArchiveBooks(it, archiveDirectory, extension, formats, budget, readerFactory, checkCancelled)
+                        }
                     } ?: throw java.io.IOException("No input stream")
                     val sources = extracted.books.associate { file ->
                         FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file) to ZipSource(uri, name, file, directory)
@@ -53,9 +64,12 @@ internal fun importSelection(
                     accepted = true
                 } catch (error: ZipImportException) {
                     result.unsupported += error.skipped
-                    result.issues += name to error.reason
+                    result.issues += name to error.reason.messageRes
+                } catch (error: ArchiveImportException) {
+                    result.unsupported += error.skipped
+                    result.issues += name to error.reason.messageRes
                 } catch (error: java.io.IOException) {
-                    result.issues += name to ZipFailure.INVALID
+                    result.issues += name to if (extension == "zip") ZipFailure.INVALID.messageRes else ArchiveFailure.INVALID.messageRes
                 } finally {
                     if (!accepted) archiveDirectory.deleteRecursively()
                 }

@@ -32,6 +32,7 @@ abstract class InstalledPythonLibraries : DefaultTask() {
 android {
     namespace = "com.econverter.app"
     compileSdk = 37
+    compileSdkMinor = 2
     ndkVersion = "30.0.16248370"
 
     defaultConfig {
@@ -79,6 +80,7 @@ android {
     }
 
     compileOptions {
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
@@ -91,6 +93,8 @@ android {
     testOptions {
         unitTests.isIncludeAndroidResources = true
     }
+
+    sourceSets.getByName("androidTest").assets.srcDir("src/test/resources")
 
     packaging {
         jniLibs.useLegacyPackaging = true
@@ -214,6 +218,13 @@ spotless {
 }
 
 dependencies {
+    implementation("me.zhanghai.android.libarchive:library:1.1.7")
+    implementation("org.apache.commons:commons-compress:1.28.0") {
+        // Only SevenZFile is used; its codecs do not use Commons Codec.
+        exclude(group = "commons-codec", module = "commons-codec")
+    }
+    implementation("org.tukaani:xz:1.12")
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
     implementation("io.github.bilec:boko-android:$bokoAndroidVersion")
     implementation(platform("androidx.compose:compose-bom:2024.12.01"))
     implementation("androidx.compose.ui:ui")
@@ -221,6 +232,7 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.9.3")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
     testImplementation("junit:junit:4.13.2")
+    testImplementation("net.java.dev.jna:jna:5.17.0")
     testImplementation("org.robolectric:robolectric:4.14.1")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test:runner:1.6.2")

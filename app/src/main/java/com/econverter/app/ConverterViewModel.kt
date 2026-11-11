@@ -110,6 +110,7 @@ class ConverterViewModel : ViewModel() {
     private val zipSources = mutableMapOf<Uri, ZipSource>()
     private var zipImportDirectory: File? = null
     private var cleared = false
+    internal var archiveReaderFactory: (File, String) -> BookArchiveReader = ::openBookArchive
 
     val isBatch: Boolean get() = inputFileNames.size > 1
     val hasSelection: Boolean get() = inputUris.isNotEmpty()
@@ -164,7 +165,7 @@ class ConverterViewModel : ViewModel() {
     fun selectHistory(entry: HistoryEntry, context: Context? = null) {
         if (isLoadingSelection || isConverting || isSaving || pendingSave || bookMetadata != null || entry.uris.isEmpty()) return
         clearSelection()
-        if (context != null && entry.fileNames.any { it.endsWith(".zip", ignoreCase = true) }) {
+        if (context != null && entry.fileNames.any { it.substringAfterLast('.', "").lowercase() in BOOK_ARCHIVE_EXTENSIONS }) {
             selectBackend(entry.backend)
             outputFormat = entry.outputFormat
             addSelectedUris(context, entry.uris)
@@ -235,7 +236,7 @@ class ConverterViewModel : ViewModel() {
                 val formats = inputFormats
                 val result = withContext(Dispatchers.IO) {
                     val jobContext = coroutineContext
-                    importSelection(context, candidates, shared, formats, directory, budget) { jobContext.ensureActive() }
+                    importSelection(context, candidates, shared, formats, directory, budget, { jobContext.ensureActive() }, archiveReaderFactory)
                 }
                 if (isConverting || isSaving || pendingSave || bookMetadata != null) return@launch
                 val validPairs = result.pairs.filterNot { it.first in inputUris }
@@ -245,7 +246,7 @@ class ConverterViewModel : ViewModel() {
                 inputFileNames = inputFileNames + validPairs.map { it.second }
                 status = when {
                     result.archives > 0 -> {
-                        val issues = result.issues.map { (name, reason) -> "$name: ${context.getString(reason.messageRes)}" } +
+                        val issues = result.issues.map { (name, messageRes) -> "$name: ${context.getString(messageRes)}" } +
                             if (result.inaccessible > 0) listOf(context.getString(R.string.status_import_failed, result.inaccessible.toString(), "0")) else emptyList()
                         StatusMessage(R.string.status_zip_import_summary, listOf(validPairs.size.toString(), result.unsupported.toString(), issues.joinToString("\n")), isError = issues.isNotEmpty())
                     }
@@ -259,9 +260,9 @@ class ConverterViewModel : ViewModel() {
                     else -> StatusMessage()
                 }
             } finally {
+                if (!adopted) withContext(NonCancellable + Dispatchers.IO) { directory.deleteRecursively() }
                 zipImportDirectory = null
                 isLoadingSelection = false
-                if (!adopted) withContext(NonCancellable + Dispatchers.IO) { directory.deleteRecursively() }
             }
         }
     }
@@ -364,10 +365,24 @@ class ConverterViewModel : ViewModel() {
     }
 
     fun createShareIntent(context: Context): Intent? {
-        val files = outputFiles.filter(File::isFile)
-        if (isSaving || isConverting || !pendingSave || files.isEmpty()) return null
+        if (isSaving || isConverting || !pendingSave) return null
+        val files = outputFiles.filter { it.isFile && it.length() > 0 && it.canRead() }
+        if (files.size != outputFiles.size || files.isEmpty()) {
+            status = StatusMessage(R.string.status_missing_outputs, isError = true)
+            return null
+        }
         val authority = "${context.packageName}.fileprovider"
-        val uris = ArrayList(files.map { FileProvider.getUriForFile(context, authority, it) })
+        val uris = try {
+            ArrayList(files.map { FileProvider.getUriForFile(context, authority, it) }).also { attachments ->
+                for (uri in attachments) {
+                    val stream = context.contentResolver.openInputStream(uri) ?: throw java.io.IOException("No attachment stream")
+                    stream.use { if (it.read() < 0) throw java.io.IOException("Empty attachment") }
+                }
+            }
+        } catch (_: Exception) {
+            status = StatusMessage(R.string.status_missing_outputs, isError = true)
+            return null
+        }
         // shortcut: detach work dir with 1h mtime retention instead of tracking receiver completion; upgrade if huge batches fill storage.
         internalWorkDirectory?.setLastModified(System.currentTimeMillis())
         internalWorkDirectory = null

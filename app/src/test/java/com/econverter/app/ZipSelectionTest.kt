@@ -123,7 +123,7 @@ class ZipSelectionTest {
     @Test
     fun conversionSuccessErrorAndCancelCleanZipInputsAndHistoryReimportsOriginalArchive() {
         val source = document("books.zip", zip("one.fb2" to "one", "two.fb2" to "two"))
-        for (outcome in listOf("success", "error", "cancel")) {
+        for (outcome in listOf("success", "error", "cancel", "missing", "empty-success")) {
             val vm = ConverterViewModel()
             vm.addSelectedUris(context, listOf(source))
             awaitIdle(vm)
@@ -138,11 +138,13 @@ class ZipSelectionTest {
                             writeText("converted")
                         },
                     )
+                } else if (outcome == "missing") {
+                    listOf(File(request.getString("directory")!!, "missing.epub"))
                 } else {
                     emptyList()
                 }
                 val status = when (outcome) {
-                    "success" -> StatusMessage(R.string.status_done, isSuccess = true)
+                    "success", "missing", "empty-success" -> StatusMessage(R.string.status_done, isSuccess = true)
                     "cancel" -> StatusMessage(R.string.status_cancelled)
                     else -> StatusMessage(R.string.status_error, listOf("Test failure"), isError = true)
                 }
@@ -181,6 +183,12 @@ class ZipSelectionTest {
             assertFalse(vm.hasSelection)
             assertTrue(importedFiles().isEmpty())
             assertEquals(listOf(source), vm.history.single().uris)
+            if (outcome == "missing" || outcome == "empty-success") {
+                assertEquals(R.string.status_missing_outputs, vm.status.resourceId)
+                assertFalse(vm.pendingSave)
+                assertNull(vm.createGmailIntent(context))
+                assertNull(vm.createShareIntent(context))
+            }
             if (outcome == "success") {
                 assertTrue(vm.pendingSave)
                 assertNotNull(vm.createShareIntent(context))
