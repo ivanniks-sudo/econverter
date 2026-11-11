@@ -620,13 +620,13 @@ class ConverterViewModelTest {
             assertEquals(2, batchIntent.clipData?.itemCount)
             assertTrue(vm.pendingSave)
 
-            // Files outside conversion-runs cannot be exposed through FileProvider.
+            // Unshareable files are reported to the UI rather than launching an empty chooser.
             vm.internalWorkDirectory = context.filesDir
             vm.outputFiles = listOf(outsideFile)
             vm.pendingSave = true
-            assertThrows(IllegalArgumentException::class.java) {
-                vm.createShareIntent(context)
-            }
+            assertNull(vm.createShareIntent(context))
+            assertEquals(R.string.status_missing_outputs, vm.status.resourceId)
+            assertTrue(vm.status.isError)
 
             // Expired shared runs are cleaned up once past the retention cutoff, while recent shared runs remain readable.
             val cutoff = System.currentTimeMillis()

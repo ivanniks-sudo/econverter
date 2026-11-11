@@ -431,7 +431,7 @@ class ConversionWorkerTest {
             vm = ViewModelProvider(composeRule.activity)[ConverterViewModel::class.java]
             vm.inputUris = listOf(original)
             vm.inputFileNames = listOf("original.epub")
-            vm.addSelectedUris(context, listOf(supported, Uri.parse("file:///books/unsupported.zip")))
+            vm.addSelectedUris(context, listOf(supported, Uri.parse("file:///books/unsupported.xyz")))
         }
         composeRule.waitUntil { vm.status.resourceId != R.string.loading_selection }
         composeRule.runOnIdle {
@@ -439,7 +439,7 @@ class ConversionWorkerTest {
             assertEquals(listOf("original.epub", "SECOND.EPUB"), vm.inputFileNames)
             assertEquals(StatusMessage(R.string.status_selected_skipped, listOf("2", "1")), vm.status)
             assertTrue(vm.canConvert)
-            vm.addSelectedUris(context, listOf(Uri.parse("file:///books/unsupported.zip")))
+            vm.addSelectedUris(context, listOf(Uri.parse("file:///books/unsupported.xyz")))
         }
         composeRule.waitUntil { vm.status.resourceId != R.string.loading_selection }
         composeRule.runOnIdle {
@@ -677,6 +677,70 @@ class ConversionWorkerTest {
             ).toByteArray()
         val document = python.getModule("pypdfium2").callAttr("PdfDocument", minimalPdf)
         assertEquals(0, document.callAttr("__len__").toInt())
+    }
+
+    @Test
+    @ConversionSmokeTest
+    fun sharedZipFb2ProducesVisibleReadableEpubAttachmentsAfterInputCleanup() {
+        val originalDirectory = File(context.filesDir, "conversion-runs/zip-smoke-${UUID.randomUUID()}").apply { mkdirs() }
+        val source = File(originalDirectory, "book.fb2.zip")
+        val fb2 = """<?xml version="1.0" encoding="utf-8"?><FictionBook xmlns="http://www.gribuser.ru/xml/fictionbook/2.0"><description><title-info><genre>prose</genre><author><first-name>Test</first-name><last-name>Author</last-name></author><book-title>ZIP Title</book-title><lang>en</lang></title-info></description><body><section><p>ZIP conversion content marker</p></section></body></FictionBook>"""
+        ZipOutputStream(source.outputStream()).use {
+            it.putNextEntry(ZipEntry("Папка/Книга.fb2"))
+            it.write(fb2.toByteArray())
+            it.closeEntry()
+        }
+        val sourceBytes = source.readBytes()
+        lateinit var vm: ConverterViewModel
+        var output: File? = null
+        try {
+            composeRule.runOnIdle {
+                vm = ViewModelProvider(composeRule.activity)[ConverterViewModel::class.java]
+                vm.receiveSharedFiles(
+                    android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                        type = "application/zip"
+                        putExtra(android.content.Intent.EXTRA_STREAM, FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", source))
+                    },
+                )
+            }
+            composeRule.waitUntil(15_000) { !vm.isLoadingSelection && vm.hasSelection }
+            composeRule.runOnIdle {
+                vm.outputFormat = "epub"
+                vm.convert(context)
+            }
+            composeRule.waitUntil(120_000) { !vm.isConverting && (vm.pendingSave || vm.status.isError) }
+            composeRule.runOnIdle {
+                assertTrue(vm.status.text(context), vm.status.isSuccess)
+                assertTrue(vm.pendingSave)
+                assertFalse(vm.hasSelection)
+                val converted = vm.outputFiles.single()
+                output = converted
+                assertTrue(converted.isFile && converted.length() > 0)
+                ZipFile(converted).use { zip ->
+                    val text = zip.entries().asSequence().filter { it.name.endsWith(".xhtml") || it.name.endsWith(".html") }
+                        .joinToString("\n") { zip.getInputStream(it).bufferedReader().use { input -> input.readText() } }
+                    assertTrue(text, text.contains("ZIP conversion content marker"))
+                }
+                @Suppress("DEPRECATION")
+                val share = vm.createShareIntent(context)!!.getParcelableExtra<android.content.Intent>(android.content.Intent.EXTRA_INTENT)!!
+                val gmail = vm.createGmailIntent(context)!!
+                assertEquals(share.clipData!!.getItemAt(0).uri, gmail.clipData!!.getItemAt(0).uri)
+                for (intent in listOf(share, gmail)) {
+                    assertTrue(intent.flags and android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION != 0)
+                    context.contentResolver.openInputStream(intent.clipData!!.getItemAt(0).uri)!!.use {
+                        assertEquals('P'.code, it.read())
+                        assertEquals('K'.code, it.read())
+                    }
+                }
+                assertArrayEquals(sourceBytes, source.readBytes())
+            }
+            composeRule.onNodeWithText("Converted files (1)").performScrollTo().assertIsDisplayed()
+            composeRule.onNodeWithText("Книга.epub").assertIsDisplayed()
+        } finally {
+            composeRule.runOnIdle { vm.discardPendingSave() }
+            output?.parentFile?.parentFile?.deleteRecursively()
+            originalDirectory.deleteRecursively()
+        }
     }
 
     @Test

@@ -8,6 +8,7 @@
 !/.gitignore
 !/LICENSE
 !/README.md
+!/ARCHIVE_IMPORT.md
 !/AGENTS.md
 !/CODEBASE_MAP.md
 !/.gitmodules
@@ -25,6 +26,11 @@
 !/app/build.gradle.kts
 !/app/src/main/AndroidManifest.xml
 !/app/src/main/assets/chaquopy_native_loader.py
+!/app/src/main/assets/archive-licenses/*.txt
+!/app/src/test/resources/archives/*.rar
+!/app/src/test/resources/archives/*.7z
+!/app/src/test/resources/archives/README.md
+!/app/src/test/resources/archives/generate_stored_rar.py
 
 # buildSrc (build logic and its tests)
 !/buildSrc/build.gradle.kts

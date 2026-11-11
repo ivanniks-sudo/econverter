@@ -23,10 +23,18 @@
         </provider>
         <activity
             android:name=".MainActivity"
+            android:launchMode="singleTop"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <!-- File managers may report e-books as application/octet-stream or */*. -->
+                <data android:mimeType="*/*" />
             </intent-filter>
         </activity>
     </application>

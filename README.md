@@ -12,9 +12,16 @@ Android app for converting e-books individually or in batches with Calibre and b
 ## Usage
 
 1. **Select eBooks**, then choose an **Output Format**. **Add eBooks** extends the queue.
+   You can also select one or more books in a file manager (such as Solid Explorer),
+   tap **Share**, and choose **EbookConverter**. Readable supported files are added
+   to the queue; unsupported or inaccessible files are reported. If conversion or
+   saving is in progress, incoming books wait until it finishes.
 2. Optionally open **Conversion options** for Metadata, Typography, Margins, or
    Advanced settings (extra arguments and text removal). Closing a group keeps its values.
 3. Tap **Convert**, then **Save** to a folder or **Share** the results.
+   **Gmail** opens a new message directly in Gmail with the results attached;
+   before conversion, it attaches the selected books instead. Address the message
+   and send it yourself. Gmail must be installed and available.
 
 Each EPUB, AZW3, or MOBI has **Edit metadata**, including in a multi-book queue.
 Choose **Create edited copy**, then **Save** or **Share**; originals and the queue
@@ -25,6 +32,9 @@ not truncated.
 
 Shared output files are retained for one hour, including across app restarts,
 then become eligible for cleanup.
+Pending results are listed under **Converted files**. Missing, empty, or unreadable
+outputs are reported as an error rather than a successful conversion. Share/Gmail
+verify result URI access before launching the receiving application.
 
 **Cancel** discards all temporary outputs from the current batch, including completed
 books; originals are unchanged.
@@ -32,6 +42,66 @@ books; originals are unchanged.
 Swipe a selected book left or right to remove it from the queue. **Clear all**
 deselects all books. **History** restores a previous selection, output format, and
 backend for the current app session.
+
+### ZIP sources
+
+Select or share `.zip`/`.fb2.zip` files just like ordinary books (including from
+Solid Explorer). Each archive can contain several supported books, in nested
+folders, with UTF-8 names including Cyrillic (legacy CP866 names are also supported). Multiple archives and ordinary
+books can be imported together. The selected backend determines which books are
+accepted. ZIP is a source container, not an output format. Nested ZIPs and other
+unsupported entries are skipped and reported; embedded resources alongside HTML
+books are not imported.
+
+Each archive is validated before its books enter the queue. An invalid, damaged,
+encrypted, unsafe, or oversized archive is rejected as a whole; other sources in
+the selection can still be imported. Empty archives and archives containing no
+supported books are reported. Original archives are never modified.
+
+Safety limits (binary MiB):
+
+- 128 MiB compressed per archive; 256 MiB compressed across one import request.
+- 64 MiB per uncompressed entry; 256 MiB of extracted ZIP books across the queue.
+  All declared entry sizes, including skipped files, must also total at most
+  256 MiB per archive. Actual extracted byte counts are checked while streaming.
+- 2,048 entries (including directories/skipped files), 256 books, and 64 ZIPs per
+  import request. Previously selected ZIP books count toward the book/byte limits.
+  Work already spent on rejected archives still counts toward that request budget.
+- Compression ratio at most 200:1 for entries larger than 1 MiB; central directory
+  at most 4 MiB. ZIP64, multi-disk, encrypted archives, and filename encodings
+  other than UTF-8/CP866 are not supported. Archive files and entries are streamed
+  with 32 KiB buffers.
+
+Absolute paths, parent traversal, and Windows drive paths are rejected. Entries
+are stored as regular files under app-private numbered directories, so matching
+basenames do not overwrite each other. CRC and size checks detect damaged data.
+
+Extracted inputs survive Activity recreation in the retained ViewModel and are
+not added twice. They are deleted on removal, Clear all, ViewModel disposal, or
+after conversion finishes, fails, or is cancelled. After conversion, ZIP-derived
+books leave the selection; ordinary source books and output Save/Share actions
+are preserved. History retains original archive URIs and imports them again when
+selected. Temporary inputs already attached to Gmail are retained for one hour,
+matching the existing output-sharing policy. Startup purges abandoned unshared
+imports and expired shared imports. Import failures/cancellation remove partial
+files. A fresh process can reimport the launch Intent if its URI grants remain
+valid; History is still limited to the current app session.
+
+### RAR and 7z sources
+
+The same picker/Share queue also accepts `.rar` (RAR4/RAR5) and `.7z`, including
+multiple archives, solid archives, subdirectories, Unicode book names, and mixed
+ordinary/ZIP/RAR/7z selections. Nested archives are skipped. ZIP decoding is
+unchanged. TAR, TAR.GZ, TGZ, and TAR.XZ are not supported.
+
+The existing byte/book/entry limits and cleanup/sharing policy apply to these
+sources too. RAR4/PPMd may need up to 256 MiB of decoder dictionary memory;
+RAR imports are refused on low-RAM/low-memory devices or when less than 512 MiB
+is available. 7z decoder memory is limited to 64 MiB per decoder; compressed and
+decoded headers are limited to 4 MiB. Encrypted, split/multi-volume, linked or
+unsafe archives and unsupported codec/header variants are rejected. See
+[ARCHIVE_IMPORT.md](ARCHIVE_IMPORT.md) for library/license decisions, exact
+limitations, test coverage, and the measured APK size comparison.
 
 ## Formats and Backends
 
@@ -123,3 +193,8 @@ using the [translation template](.github/ISSUE_TEMPLATE/translation.md).
 | <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/3.jpg" alt="Expanded conversion options" width="250" height="556" /> | <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/4.jpg" alt="Completed conversion with Save and Share actions" width="250" height="556" /> |
 | **Metadata Editor** | **Dark Mode** |
 | <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/5.jpg" alt="Metadata editor showing book title, authors, publisher and comments" width="250" height="556" /> | <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/6.jpg" alt="Main conversion screen in dark mode" width="250" height="556" /> |
+
+### Signed ARM64 release
+
+See [SIGNING.md](SIGNING.md) for the protected signing workflow, existing-key reuse,
+owner-managed secrets and verification. No private signing keys belong in this repository.

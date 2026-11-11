@@ -1,5 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="converted_files">Prevedené súbory (%1$d)</string>
+    <string name="status_missing_outputs">Prevedené súbory chýbajú, sú prázdne alebo nečitateľné. Pred uložením alebo zdieľaním preveďte knihy znova.</string>
+    <string name="archive_invalid">Neplatný, poškodený, zašifrovaný, viaczväzkový alebo nepodporovaný archív</string>
+    <string name="archive_empty">Archív neobsahuje žiadne knihy podporované vybraným prevodným modulom</string>
+    <string name="archive_unsafe">Archív obsahuje nebezpečnú cestu alebo odkaz</string>
+    <string name="archive_limit">Archív prekračuje limity importu alebo pamäte dekodéra, prípadne nie je dostatok pamäte. Skúste menší archív ZIP alebo 7z.</string>
+    <string name="status_zip_import_summary">Pridané knihy: %1$s; preskočené nepodporované súbory: %2$s. %3$s</string>
+    <string name="zip_invalid">Neplatný, poškodený alebo zašifrovaný archív ZIP</string>
+    <string name="zip_empty">ZIP neobsahuje žiadne knihy podporované vybraným prevodným modulom</string>
+    <string name="zip_unsafe">ZIP obsahuje nebezpečnú cestu k súboru</string>
+    <string name="zip_limit">Import ZIP prekračuje bezpečnostné limity (64 MB na knihu, celkovo 256 MB, 2048 položiek, 256 kníh, 64 archívov; 128 MB na ZIP; kompresný pomer 200:1)</string>
+    <string name="gmail">Gmail</string>
+    <string name="status_gmail_unavailable">Gmail nie je nainštalovaný alebo nie je dostupný</string>
+    <string name="status_gmail_failed">Gmail nie je možné otvoriť s týmito prílohami. Skontrolujte prístup k súborom a skúste to znova.</string>
+    <string name="status_share_missing_files">Požiadavka na zdieľanie neobsahuje URI súborov na čítanie</string>
+    <string name="status_import_failed">Nie je možné získať prístup k %1$s súborom; preskočené nepodporované súbory: %2$s. Skúste zdieľanie znova alebo vyberte e-knihy v aplikácii.</string>
     <string name="status_error">Chyba: %1$s</string>
     <string name="status_reading_metadata">Načítanie metadát...</string>
     <string name="status_updating_metadata">Aktualizácia metadát...</string>

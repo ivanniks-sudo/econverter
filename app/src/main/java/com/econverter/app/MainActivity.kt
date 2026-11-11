@@ -1,5 +1,6 @@
 package com.econverter.app
 
+import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -21,6 +22,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -41,6 +43,7 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.delay
 import java.text.DateFormat
@@ -49,6 +52,7 @@ import java.util.Date
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        ViewModelProvider(this)[ConverterViewModel::class.java].receiveInitialIntent(intent)
         enableEdgeToEdge()
         setContent {
             ConverterTheme {
@@ -58,6 +62,12 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        ViewModelProvider(this)[ConverterViewModel::class.java].receiveSharedFiles(intent)
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -65,11 +75,15 @@ class MainActivity : ComponentActivity() {
 fun ConverterScreen(vm: ConverterViewModel = viewModel()) {
     val context = LocalContext.current
     val removeBookLabel = stringResource(R.string.remove_book)
-    val canEdit = !vm.isConverting && !vm.isSaving && !vm.pendingSave && vm.bookMetadata == null
+    val canEdit = !vm.isLoadingSelection && !vm.isConverting && !vm.isSaving && !vm.pendingSave && vm.bookMetadata == null
 
     LaunchedEffect(Unit) {
         vm.loadBackendPreference(context)
         vm.purgeStaleTempFiles(context)
+    }
+
+    LaunchedEffect(vm.pendingSharedUris, vm.isLoadingSelection, vm.isConverting, vm.isSaving, vm.pendingSave, vm.bookMetadata) {
+        vm.importPendingSharedFiles(context)
     }
 
     LaunchedEffect(vm.status, vm.shouldAutoDismissStatus) {
@@ -185,6 +199,18 @@ fun ConverterScreen(vm: ConverterViewModel = viewModel()) {
                                 )
                             }
                         }
+                        if (vm.pendingSave || vm.hasSelection) {
+                            OutlinedButton(
+                                onClick = { vm.openGmail(context) },
+                                enabled = !vm.isLoadingSelection && !vm.isConverting && !vm.isSaving && vm.bookMetadata == null,
+                                modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
+                                shape = RoundedCornerShape(8.dp),
+                            ) {
+                                Icon(Icons.Default.Email, contentDescription = null)
+                                Spacer(Modifier.width(8.dp))
+                                Text(stringResource(R.string.gmail))
+                            }
+                        }
                     }
                 }
             }
@@ -201,6 +227,16 @@ fun ConverterScreen(vm: ConverterViewModel = viewModel()) {
                 Modifier.widthIn(max = 640.dp).fillMaxWidth().padding(24.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
+                if (vm.pendingSave && vm.outputFiles.isNotEmpty()) {
+                    Text(stringResource(R.string.converted_files, vm.outputFiles.size), style = MaterialTheme.typography.headlineSmall)
+                    vm.outputFiles.forEach { file ->
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                            Text(file.name, style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
+                    HorizontalDivider()
+                }
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text(stringResource(R.string.your_books), style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
                     if (vm.inputFileNames.isNotEmpty()) {
@@ -349,7 +385,7 @@ fun ConverterScreen(vm: ConverterViewModel = viewModel()) {
                         vm.history.asReversed().forEach { entry ->
                             Column(
                                 modifier = Modifier.fillMaxWidth()
-                                    .clickable(enabled = canEdit, onClickLabel = stringResource(R.string.select_books)) { vm.selectHistory(entry) }
+                                    .clickable(enabled = canEdit, onClickLabel = stringResource(R.string.select_books)) { vm.selectHistory(entry, context) }
                                     .padding(vertical = 12.dp),
                             ) {
                                 val entryName = if (entry.fileNames.size > 1) stringResource(R.string.books_selected, entry.fileNames.size) else entry.fileNames.firstOrNull().orEmpty()

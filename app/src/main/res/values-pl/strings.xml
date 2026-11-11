@@ -1,5 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="converted_files">Przekonwertowane pliki (%1$d)</string>
+    <string name="status_missing_outputs">Przekonwertowane pliki nie istnieją, są puste lub nieczytelne. Przed zapisaniem lub udostępnieniem ponownie przekonwertuj książki.</string>
+    <string name="archive_invalid">Nieprawidłowe, uszkodzone, zaszyfrowane, wieloczęściowe lub nieobsługiwane archiwum</string>
+    <string name="archive_empty">Archiwum nie zawiera książek obsługiwanych przez wybrany moduł konwersji</string>
+    <string name="archive_unsafe">Archiwum zawiera niebezpieczną ścieżkę lub dowiązanie</string>
+    <string name="archive_limit">Archiwum przekracza limity importu lub pamięci dekodera albo brakuje pamięci. Spróbuj użyć mniejszego archiwum ZIP lub 7z.</string>
+    <string name="status_zip_import_summary">Dodano książek: %1$s; pominięto nieobsługiwanych plików: %2$s. %3$s</string>
+    <string name="zip_invalid">Nieprawidłowe, uszkodzone lub zaszyfrowane archiwum ZIP</string>
+    <string name="zip_empty">ZIP nie zawiera książek obsługiwanych przez wybrany moduł konwersji</string>
+    <string name="zip_unsafe">ZIP zawiera niebezpieczną ścieżkę pliku</string>
+    <string name="zip_limit">Import ZIP przekracza limity bezpieczeństwa (64 MB na książkę, łącznie 256 MB, 2048 wpisów, 256 książek, 64 archiwa; 128 MB na ZIP; współczynnik kompresji 200:1)</string>
+    <string name="gmail">Gmail</string>
+    <string name="status_gmail_unavailable">Gmail nie jest zainstalowany lub jest niedostępny</string>
+    <string name="status_gmail_failed">Nie można otworzyć Gmaila z tymi załącznikami. Sprawdź dostęp do plików i spróbuj ponownie.</string>
+    <string name="status_share_missing_files">Żądanie udostępnienia nie zawiera identyfikatorów URI plików do odczytu</string>
+    <string name="status_import_failed">Brak dostępu do %1$s plików; pominięto %2$s plików w nieobsługiwanym formacie. Spróbuj udostępnić ponownie lub użyj opcji Wybierz e-booki.</string>
     <string name="status_error">Błąd: %1$s</string>
     <string name="status_reading_metadata">Odczytywanie metadanych...</string>
     <string name="status_updating_metadata">Aktualizowanie metadanych...</string>

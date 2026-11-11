@@ -13,7 +13,12 @@ Android e-book converter using Calibre (via Chaquopy) and native boko.
 ## Architecture
 
 - **Single Module Android App**: `app/` contains Kotlin UI and worker-process integration; the Python engine ships as a wheel.
+- **Gmail attachments**: `ConverterViewModel.createGmailIntent` targets `com.google.android.gm` directly with temporary content URI read grants; pending outputs take priority over selected inputs. `openGmail` reports missing Gmail or attachment-access errors. The existing generic share chooser remains unchanged.
+- **Incoming shares**: `MainActivity` receives SEND/SEND_MULTIPLE (including warm launches); `SharedFiles.kt` extracts stream/ClipData URIs, falling back to ClipData for malformed stream extras. The ViewModel handles the initial Intent once per retained instance, avoiding replay on configuration changes while recovering the launch share after process death. It defers shares while busy and imports readable content URIs through the existing selection pipeline. URI grants remain temporary; access failures are reported and conversion still reads via ContentResolver.
 - **Kotlin UI / ViewModel**: `MainActivity.kt` owns `ConverterScreen` and SAF pickers; `ConversionOptions.kt` owns the options form, `ConverterDialogs.kt` owns dialogs and issue reporting, and `ConverterTheme.kt` owns palettes. `ConverterViewModel.kt` holds state and manages selection, conversion, saving, and `FileProvider` sharing.
+- **ZIP sources**: `SelectionImporter.kt` is the common picker/share import path. `ZipBookImporter.kt` spools bounded ZIPs to private `files/zip-imports`, validates the central directory before `ZipFile` indexes entries, and streams supported books into unique numbered paths with CRC/size checks. Limits and unsupported ZIP variants are documented in README. `ZipBudget` spans the import batch and already selected ZIP books. The ViewModel tracks original archive sources for deduplication and History reimport; it releases extracted inputs after RUN success/error/cancellation, removal, clear, or disposal. Gmail-marked input directories use the existing one-hour sharing grace period. Purging snapshots candidate directories before asynchronous IO to avoid deleting a newly started import. ZIP is not a backend format.
+- **RAR/7z sources**: `OtherBookArchiveImporter.kt` reuses ZIP budgets and storage/source lifecycle, while `ZipBookImporter.kt` remains unchanged. `BookArchiveReader.kt` enables only libarchive RAR4/RAR5 readers and Commons Compress SevenZFile with a decoder memory cap. `RarHeaderGuard.kt` bounds/checks framing and CRCs; `SevenZHeaderGuard.kt` bounds encoded/decoded metadata before parser allocation. RAR admission excludes low-memory devices. No generic archive auto-detection or TAR import. `ARCHIVE_IMPORT.md` records dependency/license/ABI/size decisions; notices ship in `assets/archive-licenses`. Host RAR unit tests use Linux libarchive via test-only JNA; device tests exercise the actual Android JNI binary.
+- **Conversion results**: `checkedConversionResult` validates service result files in the receiving process. The screen lists pending output names separately from inputs; Share/Gmail validate output URI access and report missing files instead of opening an empty draft. A ZIP → Auto → EPUB device smoke test checks EPUB content and attachment readability after input cleanup.
 - **Python Bridge**: `ConversionService.kt` calls `convert()`, `read_metadata()`, or `update_metadata()` in `:conversion`. `BookMetadata` owns metadata formats and Binder values; the ViewModel retains the clicked book and draft until success or dismissal. Cancellation kills the worker before deleting its run directory.
 - **Native Python Loading**: `InstalledPythonPlatform.kt` redirects bootstrap
 	modules and `app/src/main/assets/chaquopy_native_loader.py` redirects wheel
@@ -66,3 +71,9 @@ Android e-book converter using Calibre (via Chaquopy) and native boko.
 - **Chaquopy**: Gradle plugin embedding Python interpreter inside the APK, and installing pip dependencies for each ABI.
 - **Plumber**: Calibre's core conversion orchestrator class in Python (`ebook_converter.ebooks.conversion.plumber`).
 - **SAF**: Storage Access Framework (Android Uri file pickers/savers).
+
+## Release Signing
+
+See `SIGNING.md` and `.github/workflows/arm64-release.yml`. Permanent keys must be
+created/retained by the owner locally, never generated in cloud runners. The new
+ARM64 workflow signs outside Gradle and verifies the pinned certificate and ABI.

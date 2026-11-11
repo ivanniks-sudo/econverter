@@ -4,6 +4,8 @@ on:
   push:
     tags:
       - 'v*'
+      # Source-only milestone: do not publish a GitHub Release or APKs.
+      - '!v1.5.0-archive-support'
 
 # Required to create GitHub Releases and upload assets
 permissions:

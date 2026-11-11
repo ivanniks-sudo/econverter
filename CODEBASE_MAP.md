@@ -27,6 +27,11 @@
 | [app/src/main/java/com/econverter/app/ConversionOptions.kt](app/src/main/java/com/econverter/app/ConversionOptions.kt) | Conversion options, grouped fields, dropdowns, and PDF cleanup preset. |
 | [app/src/main/java/com/econverter/app/ConverterDialogs.kt](app/src/main/java/com/econverter/app/ConverterDialogs.kt) | Metadata editor, Settings/About dialogs, and GitHub issue reporting. |
 | [app/src/main/java/com/econverter/app/ConverterViewModel.kt](app/src/main/java/com/econverter/app/ConverterViewModel.kt) | State container, file input/output handling, coroutine execution for conversion. |
+| [app/src/main/java/com/econverter/app/SelectionImporter.kt](app/src/main/java/com/econverter/app/SelectionImporter.kt) | Common picker/share import, ZIP source mappings and import results. |
+| [app/src/main/java/com/econverter/app/ZipBookImporter.kt](app/src/main/java/com/econverter/app/ZipBookImporter.kt) | Bounded ZIP validation/extraction, CRC checks and batch resource budget. |
+| [app/src/main/java/com/econverter/app/OtherBookArchiveImporter.kt](app/src/main/java/com/econverter/app/OtherBookArchiveImporter.kt) | RAR/7z streaming import with the shared ZIP budget and storage lifecycle. |
+| [app/src/main/java/com/econverter/app/BookArchiveReader.kt](app/src/main/java/com/econverter/app/BookArchiveReader.kt) | Android libarchive RAR4/RAR5 and memory-limited Commons Compress 7z adapters. |
+| [app/src/main/java/com/econverter/app/RarHeaderGuard.kt](app/src/main/java/com/econverter/app/RarHeaderGuard.kt) / [SevenZHeaderGuard.kt](app/src/main/java/com/econverter/app/SevenZHeaderGuard.kt) | Bounded header preflights before native/Java decoder allocation. |
 | [app/src/main/java/com/econverter/app/ConversionBackend.kt](app/src/main/java/com/econverter/app/ConversionBackend.kt) | Backend descriptions and accepted input/output capabilities. |
 | [app/src/main/java/com/econverter/app/ConversionService.kt](app/src/main/java/com/econverter/app/ConversionService.kt) | Bound conversion process and cancellable Binder client. |
 | [app/src/main/java/com/econverter/app/InstalledPythonPlatform.kt](app/src/main/java/com/econverter/app/InstalledPythonPlatform.kt) | Python startup adapter linking bootstrap modules to Android-installed native libraries. |
@@ -41,7 +46,13 @@
 ## Primary Data Flows
 
 1. **Input File Selection**:
+   Android SEND/SEND_MULTIPLE shares enter through `MainActivity.onCreate`/`onNewIntent` and `SharedFiles.kt` (EXTRA_STREAM or ClipData fallback, including malformed stream extras). `receiveInitialIntent` delivers the launch Intent once per retained ViewModel: configuration changes do not replay it, and a fresh ViewModel after process death recovers the launch share even when Activity state was saved. The ViewModel queues shares while busy, validates content URI read access and supported extensions (including FB2 for Auto/Calibre), and appends unique files to the existing batch selection. The launcher entrypoint remains available. No filesystem paths or persistent URI permissions are required.
+
    User selects files via Storage Access Framework (`OpenMultipleDocuments`) → `MainActivity.kt` passes Uris to `ConverterViewModel.kt`. History retains selections for the current session; Clear all removes only the selection. Swipe a book left or right (or use its accessibility action) to remove it from the selection without deleting the source. Selection changes are disabled during conversion and saving.
+
+   Both picker and shared sources go through `SelectionImporter.kt`. `.zip`/`.fb2.zip` sources are expanded by `ZipBookImporter.kt` into supported books with app-private FileProvider URIs under `zip-imports/`. Import budgets bound compressed/uncompressed bytes, entries, books, archives, and compression ratios; a bounded central-directory preflight prevents unbounded `ZipFile` indexing. Unsafe paths, encryption, malformed ZIPs, and CRC failures reject the entire archive. Unsupported entries (including nested ZIPs) are skipped. See README for exact limits. `ConverterViewModel` retains source-archive mappings for deduplication/History; History reimports original archives via `selectHistory(entry, context)`. Extracted inputs leave the selection and are deleted after conversion success/error/cancellation, or on selection removal/disposal. Gmail input grants defer deletion for one hour; stale/abandoned imports are purged separately from conversion outputs. Active imports/selections are excluded from purging.
+
+   RAR4/RAR5/7z use `OtherBookArchiveImporter.kt` and specific readers in `BookArchiveReader.kt`, sharing the existing `ZipBudget`, legacy `zipSources` mapping and `zip-imports/` directory (names retained for ZIP compatibility). Header guards reject unsafe resource allocations, truncation, split volumes, and unsupported metadata variants. TAR and compressed TAR variants never enter this pipeline. Import remains loading until rejected temporary files have been removed. `ARCHIVE_IMPORT.md` covers dependencies, host/device testing distinctions, limits and APK size measurements.
 
 2. **Conversion Execution**:
    User taps Convert → `ConverterViewModel.kt` snapshots the request → `ConversionService.kt` copies inputs and runs Chaquopy in the private `:conversion` process → outputs remain in a per-run directory under app storage. Cancel stops the worker and discards all outputs from the current batch.
@@ -61,6 +72,8 @@
    Native conversion calls `io.github.bilec.boko.Boko` from the external Android library. This repository contains no Rust or JNI implementation.
 
 3. **Output File Saving & Sharing**:
+
+   A separate Gmail button opens the Gmail compose UI directly, attaching pending conversion results or, before conversion, the selected input content URIs. It reuses output sharing retention, supplies temporary read grants and ClipData, and leaves recipients, subject, and body unset. Missing Gmail and launch/access errors become status messages. The existing Share button keeps its system chooser.
    When conversion completes, the bottom bar offers Save, Share, and Cancel actions. User can select a folder via Storage Access Framework (`OpenDocumentTree`) → `ConverterViewModel.kt` creates documents and copies the generated outputs, or share outputs via Android's share sheet using `FileProvider` URIs scoped to `conversion-runs/`. Shared run directories are preserved across cleanup until the retention window or next app launch. MIME types are inferred from file extensions, and existing names receive numeric suffixes rather than being overwritten.
 
 ## Omitted Generated / Build Paths
@@ -70,3 +83,9 @@ The following paths are generated build artifacts and should remain excluded fro
 - `.gradle/`
 - `**/__pycache__/`
 - `.kotlin/`
+
+## ARM64 release signing
+
+- `.github/workflows/arm64-release.yml`: protected manual/tag-triggered ARM64 release, signing after Gradle.
+- `.github/scripts/verify_arm64_release.py`: certificate, signature, alignment, manifest and ABI verification.
+- `SIGNING.md`: owner key management, Secrets and artifact retrieval.

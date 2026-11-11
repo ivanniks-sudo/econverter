@@ -1,5 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="converted_files">Převedené soubory (%1$d)</string>
+    <string name="status_missing_outputs">Převedené soubory chybí, jsou prázdné nebo nečitelné. Před uložením nebo sdílením převeďte knihy znovu.</string>
+    <string name="archive_invalid">Neplatný, poškozený, zašifrovaný, vícesvazkový nebo nepodporovaný archiv</string>
+    <string name="archive_empty">Archiv neobsahuje žádné knihy podporované vybraným převodním modulem</string>
+    <string name="archive_unsafe">Archiv obsahuje nebezpečnou cestu nebo odkaz</string>
+    <string name="archive_limit">Archiv překračuje limity importu nebo paměti dekodéru, případně není dostatek paměti. Zkuste menší archiv ZIP nebo 7z.</string>
+    <string name="status_zip_import_summary">Přidané knihy: %1$s; přeskočené nepodporované soubory: %2$s. %3$s</string>
+    <string name="zip_invalid">Neplatný, poškozený nebo zašifrovaný archiv ZIP</string>
+    <string name="zip_empty">ZIP neobsahuje žádné knihy podporované vybraným převodním modulem</string>
+    <string name="zip_unsafe">ZIP obsahuje nebezpečnou cestu k souboru</string>
+    <string name="zip_limit">Import ZIP překračuje bezpečnostní limity (64 MB na knihu, celkem 256 MB, 2048 položek, 256 knih, 64 archivů; 128 MB na ZIP; kompresní poměr 200:1)</string>
+    <string name="gmail">Gmail</string>
+    <string name="status_gmail_unavailable">Gmail není nainstalován nebo není dostupný</string>
+    <string name="status_gmail_failed">Gmail nelze otevřít s těmito přílohami. Zkontrolujte přístup k souborům a zkuste to znovu.</string>
+    <string name="status_share_missing_files">Požadavek na sdílení neobsahuje URI souborů ke čtení</string>
+    <string name="status_import_failed">Nelze získat přístup k %1$s souborům; přeskočeno %2$s nepodporovaných souborů. Zkuste sdílení znovu nebo vyberte e-knihy v aplikaci.</string>
     <string name="status_error">Chyba: %1$s</string>
     <string name="status_reading_metadata">Načítání metadat...</string>
     <string name="status_updating_metadata">Aktualizace metadat...</string>

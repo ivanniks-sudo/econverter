@@ -1,5 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="converted_files">Converted files (%1$d)</string>
+    <string name="status_missing_outputs">Converted files are missing, empty or unreadable. Please convert the books again before saving or sharing.</string>
+    <string name="archive_invalid">Invalid, damaged, encrypted, multi-volume or unsupported archive</string>
+    <string name="archive_empty">Archive contains no supported books for the selected backend</string>
+    <string name="archive_unsafe">Archive contains an unsafe path or link</string>
+    <string name="archive_limit">Archive exceeds import or decoder memory limits, or there is insufficient memory. Try a smaller ZIP or 7z archive.</string>
+    <string name="status_zip_import_summary">Added %1$s books; skipped %2$s unsupported files. %3$s</string>
+    <string name="zip_invalid">Invalid, damaged or encrypted ZIP archive</string>
+    <string name="zip_empty">ZIP contains no supported books for the selected backend</string>
+    <string name="zip_unsafe">ZIP contains an unsafe file path</string>
+    <string name="zip_limit">ZIP import exceeds safety limits (64 MB per book, 256 MB total, 2048 entries, 256 books, 64 archives; 128 MB per ZIP; compression ratio 200:1)</string>
+    <string name="gmail">Gmail</string>
+    <string name="status_gmail_unavailable">Gmail is not installed or is unavailable</string>
+    <string name="status_gmail_failed">Could not open Gmail with these attachments. Check file access and try again.</string>
+    <string name="status_share_missing_files">No readable file URIs were included in the share request</string>
+    <string name="status_import_failed">Could not access %1$s file(s); %2$s unsupported file(s) skipped. Inaccessible files were skipped. Try sharing again or use Select eBooks.</string>
     <string name="status_error">Error: %1$s</string>
     <string name="status_reading_metadata">Reading metadata...</string>
     <string name="status_updating_metadata">Updating metadata...</string>
