@@ -375,7 +375,7 @@ fun ConverterScreen(vm: ConverterViewModel = viewModel()) {
                         vm.history.asReversed().forEach { entry ->
                             Column(
                                 modifier = Modifier.fillMaxWidth()
-                                    .clickable(enabled = canEdit, onClickLabel = stringResource(R.string.select_books)) { vm.selectHistory(entry) }
+                                    .clickable(enabled = canEdit, onClickLabel = stringResource(R.string.select_books)) { vm.selectHistory(entry, context) }
                                     .padding(vertical = 12.dp),
                             ) {
                                 val entryName = if (entry.fileNames.size > 1) stringResource(R.string.books_selected, entry.fileNames.size) else entry.fileNames.firstOrNull().orEmpty()

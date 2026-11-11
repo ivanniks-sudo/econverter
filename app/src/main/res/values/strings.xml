@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="status_zip_import_summary">Added %1$s books; skipped %2$s unsupported files. %3$s</string>
+    <string name="zip_invalid">Invalid, damaged or encrypted ZIP archive</string>
+    <string name="zip_empty">ZIP contains no supported books for the selected backend</string>
+    <string name="zip_unsafe">ZIP contains an unsafe file path</string>
+    <string name="zip_limit">ZIP import exceeds safety limits (64 MB per book, 256 MB total, 2048 entries, 256 books, 64 archives; 128 MB per ZIP; compression ratio 200:1)</string>
     <string name="gmail">Gmail</string>
     <string name="status_gmail_unavailable">Gmail is not installed or is unavailable</string>
     <string name="status_gmail_failed">Could not open Gmail with these attachments. Check file access and try again.</string>

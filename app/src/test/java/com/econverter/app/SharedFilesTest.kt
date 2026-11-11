@@ -255,11 +255,11 @@ class SharedFilesTest {
         val context = RuntimeEnvironment.getApplication()
         val vm = ConverterViewModel()
         val original = Uri.parse("file:///books/original.epub")
-        vm.addSelectedUris(context, listOf(original, Uri.parse("file:///books/unsupported.zip")))
+        vm.addSelectedUris(context, listOf(original, Uri.parse("file:///books/unsupported.xyz")))
         awaitImport(vm)
         assertEquals(listOf(original), vm.inputUris)
         assertEquals(StatusMessage(R.string.status_selected_skipped, listOf("1", "1")), vm.status)
-        vm.addSelectedUris(context, listOf(Uri.parse("file:///books/unsupported.zip")))
+        vm.addSelectedUris(context, listOf(Uri.parse("file:///books/unsupported.xyz")))
         awaitImport(vm)
         assertEquals(listOf(original), vm.inputUris)
         assertEquals(StatusMessage(R.string.status_unsupported_selection), vm.status)
@@ -269,7 +269,7 @@ class SharedFilesTest {
     fun manifestResolvesGenericFileSharesAndNormalLauncher() {
         val context = RuntimeEnvironment.getApplication()
         for (action in listOf(Intent.ACTION_SEND, Intent.ACTION_SEND_MULTIPLE)) {
-            for (mime in listOf("application/epub+zip", "application/fb2", "application/x-fictionbook+xml", "text/xml", "application/octet-stream", "application/pdf", "*/*")) {
+            for (mime in listOf("application/zip", "application/x-zip-compressed", "application/epub+zip", "application/fb2", "application/x-fictionbook+xml", "text/xml", "application/octet-stream", "application/pdf", "*/*")) {
                 val intent = Intent(action).setType(mime).setPackage(context.packageName)
                 assertTrue(context.packageManager.queryIntentActivities(intent, android.content.pm.PackageManager.MATCH_DEFAULT_ONLY).any { it.activityInfo.name == MainActivity::class.java.name })
             }

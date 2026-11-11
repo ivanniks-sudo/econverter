@@ -40,6 +40,50 @@ Swipe a selected book left or right to remove it from the queue. **Clear all**
 deselects all books. **History** restores a previous selection, output format, and
 backend for the current app session.
 
+### ZIP sources
+
+Select or share `.zip`/`.fb2.zip` files just like ordinary books (including from
+Solid Explorer). Each archive can contain several supported books, in nested
+folders, with UTF-8 names including Cyrillic (legacy CP866 names are also supported). Multiple archives and ordinary
+books can be imported together. The selected backend determines which books are
+accepted. ZIP is a source container, not an output format. Nested ZIPs and other
+unsupported entries are skipped and reported; embedded resources alongside HTML
+books are not imported.
+
+Each archive is validated before its books enter the queue. An invalid, damaged,
+encrypted, unsafe, or oversized archive is rejected as a whole; other sources in
+the selection can still be imported. Empty archives and archives containing no
+supported books are reported. Original archives are never modified.
+
+Safety limits (binary MiB):
+
+- 128 MiB compressed per archive; 256 MiB compressed across one import request.
+- 64 MiB per uncompressed entry; 256 MiB of extracted ZIP books across the queue.
+  All declared entry sizes, including skipped files, must also total at most
+  256 MiB per archive. Actual extracted byte counts are checked while streaming.
+- 2,048 entries (including directories/skipped files), 256 books, and 64 ZIPs per
+  import request. Previously selected ZIP books count toward the book/byte limits.
+  Work already spent on rejected archives still counts toward that request budget.
+- Compression ratio at most 200:1 for entries larger than 1 MiB; central directory
+  at most 4 MiB. ZIP64, multi-disk, encrypted archives, and filename encodings
+  other than UTF-8/CP866 are not supported. Archive files and entries are streamed
+  with 32 KiB buffers.
+
+Absolute paths, parent traversal, and Windows drive paths are rejected. Entries
+are stored as regular files under app-private numbered directories, so matching
+basenames do not overwrite each other. CRC and size checks detect damaged data.
+
+Extracted inputs survive Activity recreation in the retained ViewModel and are
+not added twice. They are deleted on removal, Clear all, ViewModel disposal, or
+after conversion finishes, fails, or is cancelled. After conversion, ZIP-derived
+books leave the selection; ordinary source books and output Save/Share actions
+are preserved. History retains original archive URIs and imports them again when
+selected. Temporary inputs already attached to Gmail are retained for one hour,
+matching the existing output-sharing policy. Startup purges abandoned unshared
+imports and expired shared imports. Import failures/cancellation remove partial
+files. A fresh process can reimport the launch Intent if its URI grants remain
+valid; History is still limited to the current app session.
+
 ## Formats and Backends
 
 **Input (Auto):** epub, mobi, azw3, docx, odt, fb2, html, htmlz, lrf, pdb, rtf, txt, md, markdown, pdf, kfx

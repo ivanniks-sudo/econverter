@@ -18,6 +18,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.econverter.app.FileExtensions.EPUB
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -105,6 +107,9 @@ class ConverterViewModel : ViewModel() {
     private var worker: ConversionWorker? = null
     private var backendPreferenceLoaded = false
     private var initialIntentReceived = false
+    private val zipSources = mutableMapOf<Uri, ZipSource>()
+    private var zipImportDirectory: File? = null
+    private var cleared = false
 
     val isBatch: Boolean get() = inputFileNames.size > 1
     val hasSelection: Boolean get() = inputUris.isNotEmpty()
@@ -140,6 +145,7 @@ class ConverterViewModel : ViewModel() {
 
     fun clearSelection() {
         if (isLoadingSelection || isConverting || isSaving || pendingSave || bookMetadata != null) return
+        releaseZipBooks(zipSources.keys.toList())
         inputUris = emptyList()
         inputFileNames = emptyList()
         status = StatusMessage()
@@ -149,13 +155,21 @@ class ConverterViewModel : ViewModel() {
         if (isLoadingSelection || isConverting || isSaving || pendingSave || bookMetadata != null) return
         val index = inputUris.indexOf(uri)
         if (index == -1) return
+        releaseZipBooks(listOf(uri))
         inputUris = inputUris.filterIndexed { i, _ -> i != index }
         inputFileNames = inputFileNames.filterIndexed { i, _ -> i != index }
         status = StatusMessage()
     }
 
-    fun selectHistory(entry: HistoryEntry) {
+    fun selectHistory(entry: HistoryEntry, context: Context? = null) {
         if (isLoadingSelection || isConverting || isSaving || pendingSave || bookMetadata != null || entry.uris.isEmpty()) return
+        clearSelection()
+        if (context != null && entry.fileNames.any { it.endsWith(".zip", ignoreCase = true) }) {
+            selectBackend(entry.backend)
+            outputFormat = entry.outputFormat
+            addSelectedUris(context, entry.uris)
+            return
+        }
         inputUris = entry.uris.toList()
         inputFileNames = entry.fileNames.toList()
         outputFormat = entry.outputFormat
@@ -163,7 +177,12 @@ class ConverterViewModel : ViewModel() {
     }
 
     fun purgeStaleTempFiles(context: android.content.Context, cutoffMillis: Long = System.currentTimeMillis() - SHARED_RUN_RETENTION_MILLIS) {
+        val activeZipDirectories = zipSources.values.map { it.directory }.toSet() + listOfNotNull(zipImportDirectory)
+        val zipDirectories = File(context.filesDir, ZIP_IMPORTS_DIRECTORY).listFiles().orEmpty()
         viewModelScope.launch(Dispatchers.IO) {
+            zipDirectories.forEach { directory ->
+                if (directory !in activeZipDirectories && (!File(directory, ".shared").exists() || directory.lastModified() < cutoffMillis)) directory.deleteRecursively()
+            }
             File(context.filesDir, CONVERSION_RUNS_DIRECTORY).listFiles()?.forEach { file ->
                 if (file != internalWorkDirectory && file.lastModified() < cutoffMillis) {
                     file.deleteRecursively()
@@ -203,52 +222,46 @@ class ConverterViewModel : ViewModel() {
 
     fun addSelectedUris(context: Context, newUris: List<Uri>, shared: Boolean = false) {
         if (isLoadingSelection || isConverting || isSaving || pendingSave || bookMetadata != null) return
-        val candidates = newUris.distinct().filterNot { it in inputUris }
+        val candidates = newUris.distinct().filterNot { it in inputUris || zipSources.values.any { source -> source.uri == it } }
         if (candidates.isEmpty()) return
+        val directory = File(context.filesDir, "$ZIP_IMPORTS_DIRECTORY/${UUID.randomUUID()}")
+        zipImportDirectory = directory
+        val budget = ZipBudget(bytes = zipSources.values.sumOf { it.file.length() }, books = zipSources.size)
         isLoadingSelection = true
         status = StatusMessage(R.string.loading_selection)
         viewModelScope.launch {
+            var adopted = false
             try {
-                val supportedFormats = inputFormats
-                val (pairs, unsupportedCount, inaccessibleCount) = withContext(Dispatchers.IO) {
-                    val valid = mutableListOf<Pair<Uri, String>>()
-                    var unsupported = 0
-                    var inaccessible = 0
-                    for (uri in candidates) {
-                        try {
-                            if (shared && uri.scheme != "content") {
-                                inaccessible++
-                                continue
-                            }
-                            val name = getFileName(context, uri)
-                            if (name.substringAfterLast('.', "").lowercase() !in supportedFormats) {
-                                unsupported++
-                                continue
-                            }
-                            if (shared) {
-                                val stream = context.contentResolver.openInputStream(uri)
-                                    ?: throw java.io.IOException("No input stream")
-                                stream.use { it.read() }
-                            }
-                            valid += uri to name
-                        } catch (_: Exception) {
-                            inaccessible++
-                        }
-                    }
-                    Triple(valid, unsupported, inaccessible)
+                val formats = inputFormats
+                val result = withContext(Dispatchers.IO) {
+                    val jobContext = coroutineContext
+                    importSelection(context, candidates, shared, formats, directory, budget) { jobContext.ensureActive() }
                 }
                 if (isConverting || isSaving || pendingSave || bookMetadata != null) return@launch
-                val validPairs = pairs.filterNot { it.first in inputUris }
+                val validPairs = result.pairs.filterNot { it.first in inputUris }
+                zipSources.putAll(result.zipSources)
+                adopted = result.zipSources.isNotEmpty()
                 inputUris = inputUris + validPairs.map { it.first }
                 inputFileNames = inputFileNames + validPairs.map { it.second }
                 status = when {
-                    inaccessibleCount > 0 -> StatusMessage(R.string.status_import_failed, listOf(inaccessibleCount.toString(), unsupportedCount.toString()), isError = true)
-                    validPairs.isNotEmpty() && unsupportedCount > 0 -> StatusMessage(R.string.status_selected_skipped, listOf(inputUris.size.toString(), unsupportedCount.toString()))
-                    validPairs.isEmpty() && unsupportedCount > 0 -> StatusMessage(R.string.status_unsupported_selection, isError = shared)
+                    result.archives > 0 -> {
+                        val issues = result.issues.map { (name, reason) -> "$name: ${context.getString(reason.messageRes)}" } +
+                            if (result.inaccessible > 0) listOf(context.getString(R.string.status_import_failed, result.inaccessible.toString(), "0")) else emptyList()
+                        StatusMessage(R.string.status_zip_import_summary, listOf(validPairs.size.toString(), result.unsupported.toString(), issues.joinToString("\n")), isError = issues.isNotEmpty())
+                    }
+
+                    result.inaccessible > 0 -> StatusMessage(R.string.status_import_failed, listOf(result.inaccessible.toString(), result.unsupported.toString()), isError = true)
+
+                    validPairs.isNotEmpty() && result.unsupported > 0 -> StatusMessage(R.string.status_selected_skipped, listOf(inputUris.size.toString(), result.unsupported.toString()))
+
+                    validPairs.isEmpty() && result.unsupported > 0 -> StatusMessage(R.string.status_unsupported_selection, isError = shared)
+
                     else -> StatusMessage()
                 }
             } finally {
+                zipImportDirectory = null
                 isLoadingSelection = false
+                if (!adopted) withContext(NonCancellable + Dispatchers.IO) { directory.deleteRecursively() }
             }
         }
     }
@@ -306,6 +319,7 @@ class ConverterViewModel : ViewModel() {
         val target = if (operation == ConversionService.RUN) null else requireNotNull(metadataTarget)
         val uris = if (target == null) inputUris.toList() else listOf(target.first)
         val names = if (target == null) inputFileNames.toList() else listOf(target.second)
+        val historySources = uris.zip(names).map { (uri, name) -> zipSources[uri]?.let { it.uri to it.name } ?: (uri to name) }.distinctBy { it.first }
         val format = if (operation == ConversionService.RUN) outputFormat else names.single().substringAfterLast('.').lowercase()
         val selectedBackend = backend
         val args = if (operation != ConversionService.RUN || selectedBackend == ConversionBackend.BOKO) emptyList() else buildExtraArgs()
@@ -333,10 +347,12 @@ class ConverterViewModel : ViewModel() {
                     metadataDraft = result.metadata
                 }
                 if (operation == ConversionService.RUN) {
-                    history.add(HistoryEntry(format, result.status, System.currentTimeMillis(), uris, names, selectedBackend))
+                    history.add(HistoryEntry(format, result.status, System.currentTimeMillis(), historySources.map { it.first }, historySources.map { it.second }, selectedBackend))
                     if (history.size > MAX_HISTORY_ENTRIES) history.removeAt(0)
                 }
             } finally {
+                if (operation == ConversionService.RUN) finishZipConversion(uris)
+                if (cleared) releaseZipBooks(zipSources.keys.toList())
                 worker = null
                 isConverting = false
                 isCancelling = false
@@ -375,6 +391,11 @@ class ConverterViewModel : ViewModel() {
             if (inputUris.isEmpty()) return null
             require(inputUris.all { it.scheme == "content" }) { "Only content URIs can be attached" }
             val uris = ArrayList(inputUris)
+            // Like shared outputs, ZIP inputs already handed to Gmail need a grace period.
+            zipSources.values.map { it.directory }.distinct().forEach {
+                File(it, ".shared").writeText("")
+                it.setLastModified(System.currentTimeMillis())
+            }
             val types = uris.map { context.contentResolver.getType(it) ?: "application/octet-stream" }.distinct()
             Intent(if (uris.size == 1) Intent.ACTION_SEND else Intent.ACTION_SEND_MULTIPLE).apply {
                 type = types.singleOrNull() ?: "*/*"
@@ -484,6 +505,25 @@ class ConverterViewModel : ViewModel() {
         return candidate
     }
 
+    // Called only after the conversion worker has stopped reading the input files.
+    internal fun finishZipConversion(uris: List<Uri>) {
+        val removed = uris.filter { it in zipSources }.toSet()
+        val remaining = inputUris.zip(inputFileNames).filterNot { it.first in removed }
+        releaseZipBooks(removed.toList())
+        inputUris = remaining.map { it.first }
+        inputFileNames = remaining.map { it.second }
+    }
+
+    private fun releaseZipBooks(uris: List<Uri>) {
+        val released = uris.mapNotNull { zipSources.remove(it) }
+        for (source in released) {
+            if (!File(source.directory, ".shared").exists()) source.file.delete()
+        }
+        released.map { it.directory }.distinct().forEach { directory ->
+            if (zipSources.values.none { it.directory == directory } && !File(directory, ".shared").exists()) directory.deleteRecursively()
+        }
+    }
+
     private fun cleanup() {
         internalWorkDirectory?.deleteRecursively()
         outputFiles = emptyList()
@@ -492,7 +532,9 @@ class ConverterViewModel : ViewModel() {
     }
 
     override fun onCleared() {
+        cleared = true
         worker?.cancel()
+        if (!isConverting) releaseZipBooks(zipSources.keys.toList())
         if (!isConverting && !isSaving) cleanup()
         super.onCleared()
     }

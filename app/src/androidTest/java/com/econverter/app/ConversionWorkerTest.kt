@@ -431,7 +431,7 @@ class ConversionWorkerTest {
             vm = ViewModelProvider(composeRule.activity)[ConverterViewModel::class.java]
             vm.inputUris = listOf(original)
             vm.inputFileNames = listOf("original.epub")
-            vm.addSelectedUris(context, listOf(supported, Uri.parse("file:///books/unsupported.zip")))
+            vm.addSelectedUris(context, listOf(supported, Uri.parse("file:///books/unsupported.xyz")))
         }
         composeRule.waitUntil { vm.status.resourceId != R.string.loading_selection }
         composeRule.runOnIdle {
@@ -439,7 +439,7 @@ class ConversionWorkerTest {
             assertEquals(listOf("original.epub", "SECOND.EPUB"), vm.inputFileNames)
             assertEquals(StatusMessage(R.string.status_selected_skipped, listOf("2", "1")), vm.status)
             assertTrue(vm.canConvert)
-            vm.addSelectedUris(context, listOf(Uri.parse("file:///books/unsupported.zip")))
+            vm.addSelectedUris(context, listOf(Uri.parse("file:///books/unsupported.xyz")))
         }
         composeRule.waitUntil { vm.status.resourceId != R.string.loading_selection }
         composeRule.runOnIdle {
