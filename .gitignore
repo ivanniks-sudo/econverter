@@ -55,3 +55,8 @@
 !/.github/workflows/release.yml
 !/.github/ISSUE_TEMPLATE/bug_report.md
 !/.github/ISSUE_TEMPLATE/translation.md
+
+# Signed ARM64 release infrastructure
+!/SIGNING.md
+!/.github/workflows/arm64-release.yml
+!/.github/scripts/verify_arm64_release.py
