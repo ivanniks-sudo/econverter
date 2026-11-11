@@ -71,3 +71,9 @@ Android e-book converter using Calibre (via Chaquopy) and native boko.
 - **Chaquopy**: Gradle plugin embedding Python interpreter inside the APK, and installing pip dependencies for each ABI.
 - **Plumber**: Calibre's core conversion orchestrator class in Python (`ebook_converter.ebooks.conversion.plumber`).
 - **SAF**: Storage Access Framework (Android Uri file pickers/savers).
+
+## Release Signing
+
+See `SIGNING.md` and `.github/workflows/arm64-release.yml`. Permanent keys must be
+created/retained by the owner locally, never generated in cloud runners. The new
+ARM64 workflow signs outside Gradle and verifies the pinned certificate and ABI.

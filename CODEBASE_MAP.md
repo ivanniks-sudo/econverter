@@ -83,3 +83,9 @@ The following paths are generated build artifacts and should remain excluded fro
 - `.gradle/`
 - `**/__pycache__/`
 - `.kotlin/`
+
+## ARM64 release signing
+
+- `.github/workflows/arm64-release.yml`: protected manual/tag-triggered ARM64 release, signing after Gradle.
+- `.github/scripts/verify_arm64_release.py`: certificate, signature, alignment, manifest and ABI verification.
+- `SIGNING.md`: owner key management, Secrets and artifact retrieval.

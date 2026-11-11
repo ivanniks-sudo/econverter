@@ -1,0 +1,106 @@
+name: Signed ARM64 Release APK
+
+on:
+  workflow_dispatch:
+  # Explicit owner-created tag fallback when this workflow is absent from master.
+  push:
+    tags: ['arm64-test-*']
+
+permissions:
+  contents: read
+
+jobs:
+  arm64-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: release-signing
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Validate source and signing configuration
+        env:
+          HAVE_KEY: ${{ secrets.KEYSTORE_BASE64 != '' }}
+          HAVE_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD != '' }}
+          HAVE_ALIAS: ${{ secrets.KEY_ALIAS != '' }}
+          HAVE_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD != '' }}
+          RELEASE_CERT_SHA256: ${{ vars.RELEASE_CERT_SHA256 }}
+          RELEASE_KEYSTORE_TYPE: ${{ vars.RELEASE_KEYSTORE_TYPE }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$GITHUB_REF" in
+            refs/heads/feat/rar-7z-import|refs/tags/arm64-test-*) ;;
+            *) echo 'Select feat/rar-7z-import or an arm64-test-* tag'; exit 1 ;;
+          esac
+          git merge-base --is-ancestor 2c6f2920eae952782fffa287c4fc892beb43549a HEAD
+          for present in "$HAVE_KEY" "$HAVE_STORE_PASSWORD" "$HAVE_ALIAS" "$HAVE_KEY_PASSWORD"; do
+            test "$present" = true || { echo 'Required signing secret is missing'; exit 1; }
+          done
+          [[ "$RELEASE_KEYSTORE_TYPE" == JKS || "$RELEASE_KEYSTORE_TYPE" == PKCS12 ]]
+          [[ "${RELEASE_CERT_SHA256//:/}" =~ ^[[:xdigit:]]{64}$ ]]
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6
+        with:
+          java-version: '17'
+          distribution: temurin
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6
+        with:
+          cache-read-only: true
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
+        id: python
+        with:
+          python-version: '3.11'
+      - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4
+      - name: Install Android build tools
+        run: sdkmanager 'build-tools;36.0.0' 'platforms;android-37.2' 'ndk;30.0.16248370'
+      - name: Build unsigned ARM64 release without signing credentials
+        env:
+          CHAQUOPY_BUILD_PYTHON: ${{ steps.python.outputs.python-path }}
+        run: |
+          unset KEYSTORE_PATH KEYSTORE_BASE64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD
+          bash ./gradlew ':app:assembleArm64-v8aRelease'
+      - name: Align and sign APK
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          RELEASE_KEYSTORE_TYPE: ${{ vars.RELEASE_KEYSTORE_TYPE }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          signing_dir="$RUNNER_TEMP/release-signing"
+          trap 'rm -rf "$signing_dir"' EXIT
+          mkdir -p "$signing_dir" "$RUNNER_TEMP/arm64-release-artifacts"
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$signing_dir/keystore"
+          tools="$ANDROID_HOME/build-tools/36.0.0"
+          "$tools/zipalign" -P 16 -f 4 \
+            app/build/outputs/apk/arm64-v8a/release/app-arm64-v8a-release-unsigned.apk \
+            "$signing_dir/aligned.apk"
+          "$tools/apksigner" sign --ks "$signing_dir/keystore" \
+            --ks-type "$RELEASE_KEYSTORE_TYPE" --ks-key-alias "$KEY_ALIAS" \
+            --ks-pass env:KEYSTORE_PASSWORD --key-pass env:KEY_PASSWORD \
+            --out "$RUNNER_TEMP/arm64-release-artifacts/econverter-1.5.0-arm64-v8a-release.apk" \
+            "$signing_dir/aligned.apk"
+      - name: Verify signature, certificate, manifest and architecture
+        env:
+          RELEASE_CERT_SHA256: ${{ vars.RELEASE_CERT_SHA256 }}
+        run: |
+          python .github/scripts/verify_arm64_release.py \
+            "$RUNNER_TEMP/arm64-release-artifacts/econverter-1.5.0-arm64-v8a-release.apk" \
+            "$ANDROID_HOME/build-tools/36.0.0" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Upload verified signed APK
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: signed-arm64-release-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/arm64-release-artifacts/*.apk
+            ${{ runner.temp }}/arm64-release-artifacts/verification.json
+            ${{ runner.temp }}/arm64-release-artifacts/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 14
+      - name: Remove signing material
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/release-signing"

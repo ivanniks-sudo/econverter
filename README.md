@@ -193,3 +193,8 @@ using the [translation template](.github/ISSUE_TEMPLATE/translation.md).
 | <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/3.jpg" alt="Expanded conversion options" width="250" height="556" /> | <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/4.jpg" alt="Completed conversion with Save and Share actions" width="250" height="556" /> |
 | **Metadata Editor** | **Dark Mode** |
 | <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/5.jpg" alt="Metadata editor showing book title, authors, publisher and comments" width="250" height="556" /> | <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/6.jpg" alt="Main conversion screen in dark mode" width="250" height="556" /> |
+
+### Signed ARM64 release
+
+See [SIGNING.md](SIGNING.md) for the protected signing workflow, existing-key reuse,
+owner-managed secrets and verification. No private signing keys belong in this repository.
