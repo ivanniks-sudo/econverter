@@ -104,6 +104,7 @@ class ConverterViewModel : ViewModel() {
     internal var internalWorkDirectory: File? = null
     private var worker: ConversionWorker? = null
     private var backendPreferenceLoaded = false
+    private var initialIntentReceived = false
 
     val isBatch: Boolean get() = inputFileNames.size > 1
     val hasSelection: Boolean get() = inputUris.isNotEmpty()
@@ -169,6 +170,13 @@ class ConverterViewModel : ViewModel() {
                 }
             }
         }
+    }
+
+    internal fun receiveInitialIntent(intent: Intent) {
+        // Retained across configuration changes, but reset with the selection after process death.
+        if (initialIntentReceived) return
+        initialIntentReceived = true
+        receiveSharedFiles(intent)
     }
 
     fun receiveSharedFiles(intent: Intent) {

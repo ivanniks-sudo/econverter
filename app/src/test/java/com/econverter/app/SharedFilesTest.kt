@@ -8,8 +8,11 @@ import android.content.pm.ProviderInfo
 import android.database.Cursor
 import android.database.MatrixCursor
 import android.net.Uri
+import android.os.BadParcelableException
 import android.os.Looper
+import android.os.Parcel
 import android.os.ParcelFileDescriptor
+import android.os.Parcelable
 import android.provider.OpenableColumns
 import androidx.lifecycle.ViewModelProvider
 import org.junit.Assert.*
@@ -52,6 +55,65 @@ class SharedFilesTest {
         assertEquals(listOf(first, second), sharedFileUris(Intent(Intent.ACTION_SEND_MULTIPLE).apply { clipData = clip }))
         assertEquals(listOf(first), sharedFileUris(Intent(Intent.ACTION_SEND).apply { clipData = clip }))
         assertTrue(sharedFileUris(Intent(Intent.ACTION_SEND).putExtra(Intent.EXTRA_TEXT, "hello")).isEmpty())
+    }
+
+    @Test
+    @Config(sdk = [28, 33])
+    fun malformedStreamExtraStillAllowsClipDataFallback() {
+        for (action in listOf(Intent.ACTION_SEND, Intent.ACTION_SEND_MULTIPLE)) {
+            val intent = Intent(action).putExtra(Intent.EXTRA_STREAM, "not a URI").apply {
+                clipData = ClipData.newRawUri("books", first)
+            }
+            assertEquals(listOf(first), sharedFileUris(intent))
+        }
+    }
+
+    @Test
+    @Config(sdk = [28, 33])
+    fun unreadableStreamParcelStillAllowsClipDataFallback() {
+        val parcel = Parcel.obtain()
+        try {
+            Intent(Intent.ACTION_SEND).putExtra(Intent.EXTRA_STREAM, BrokenStream()).apply {
+                clipData = ClipData.newRawUri("books", first)
+            }.writeToParcel(parcel, 0)
+            parcel.setDataPosition(0)
+            val delivered = Intent.CREATOR.createFromParcel(parcel).apply {
+                setExtrasClassLoader(BrokenStream::class.java.classLoader)
+            }
+            assertEquals(listOf(first), sharedFileUris(delivered))
+        } finally {
+            parcel.recycle()
+        }
+    }
+
+    @Test
+    fun solidExplorerStyleFb2SharesAppendToTheBatch() {
+        registerProvider()
+        val context = RuntimeEnvironment.getApplication()
+        val vm = ConverterViewModel()
+        val fb2 = Uri.parse("content://shared-books/fb2")
+        vm.receiveSharedFiles(
+            Intent(Intent.ACTION_SEND).setType("application/octet-stream").apply {
+                clipData = ClipData.newRawUri("books", fb2)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            },
+        )
+        vm.importPendingSharedFiles(context)
+        awaitImport(vm)
+        assertEquals(listOf("Книга.FB2"), vm.inputFileNames)
+        assertTrue(vm.canConvert)
+
+        val otherFb2 = Uri.parse("content://shared-books/other-fb2")
+        vm.receiveSharedFiles(
+            Intent(Intent.ACTION_SEND_MULTIPLE).setType("*/*")
+                .putParcelableArrayListExtra(Intent.EXTRA_STREAM, arrayListOf(fb2, otherFb2, first, second)),
+        )
+        vm.importPendingSharedFiles(context)
+        awaitImport(vm)
+        assertEquals(listOf(fb2, otherFb2, first, second), vm.inputUris)
+        assertEquals(listOf("Книга.FB2", "second.fb2", "BOOK.EPUB", "second.pdf"), vm.inputFileNames)
+        assertTrue(vm.isBatch)
+        assertTrue(vm.canConvert)
     }
 
     @Test
@@ -141,7 +203,7 @@ class SharedFilesTest {
     }
 
     @Test
-    fun launcherAndNewIntentUseSameViewModelAndRecreationDoesNotReplayShare() {
+    fun launcherAndNewIntentUseSameViewModelAndProcessRestorationRecoversShare() {
         val controller = Robolectric.buildActivity(MainActivity::class.java, Intent(Intent.ACTION_MAIN)).create()
         val activity = controller.get()
         val vm = ViewModelProvider(activity)[ConverterViewModel::class.java]
@@ -150,10 +212,34 @@ class SharedFilesTest {
         controller.newIntent(share)
         assertEquals(listOf(first), vm.pendingSharedUris)
         assertEquals(share, activity.intent)
+        val multiple = Intent(Intent.ACTION_SEND_MULTIPLE)
+            .putParcelableArrayListExtra(Intent.EXTRA_STREAM, arrayListOf(first, second))
+        controller.newIntent(multiple)
+        assertSame(vm, ViewModelProvider(activity)[ConverterViewModel::class.java])
+        assertEquals(listOf(first, second), vm.pendingSharedUris)
+        assertEquals(multiple, activity.intent)
         controller.destroy()
-        // A saved Activity state means the original share has already been delivered.
-        val restored = Robolectric.buildActivity(MainActivity::class.java, share).create(android.os.Bundle()).get()
-        assertTrue(ViewModelProvider(restored)[ConverterViewModel::class.java].pendingSharedUris.isEmpty())
+        // Saved Activity state also exists after process death, when there is no retained ViewModel.
+        val restored = Robolectric.buildActivity(MainActivity::class.java, multiple).create(android.os.Bundle())
+        assertEquals(listOf(first, second), ViewModelProvider(restored.get())[ConverterViewModel::class.java].pendingSharedUris)
+        restored.destroy()
+    }
+
+    @Test
+    fun retainedViewModelDoesNotReplayTheInitialIntentAfterSelectionIsCleared() {
+        registerProvider()
+        val vm = ConverterViewModel()
+        val share = Intent(Intent.ACTION_SEND).putExtra(Intent.EXTRA_STREAM, first)
+        vm.receiveInitialIntent(share)
+        vm.importPendingSharedFiles(RuntimeEnvironment.getApplication())
+        awaitImport(vm)
+        vm.clearSelection()
+        vm.receiveInitialIntent(share)
+        assertTrue(vm.pendingSharedUris.isEmpty())
+        assertFalse(vm.hasSelection)
+        // A new delivery of the same file must still work in an already open Activity.
+        vm.receiveSharedFiles(share)
+        assertEquals(listOf(first), vm.pendingSharedUris)
     }
 
     @Test
@@ -183,7 +269,7 @@ class SharedFilesTest {
     fun manifestResolvesGenericFileSharesAndNormalLauncher() {
         val context = RuntimeEnvironment.getApplication()
         for (action in listOf(Intent.ACTION_SEND, Intent.ACTION_SEND_MULTIPLE)) {
-            for (mime in listOf("application/epub+zip", "application/octet-stream", "application/pdf", "*/*")) {
+            for (mime in listOf("application/epub+zip", "application/fb2", "application/x-fictionbook+xml", "text/xml", "application/octet-stream", "application/pdf", "*/*")) {
                 val intent = Intent(action).setType(mime).setPackage(context.packageName)
                 assertTrue(context.packageManager.queryIntentActivities(intent, android.content.pm.PackageManager.MATCH_DEFAULT_ONLY).any { it.activityInfo.name == MainActivity::class.java.name })
             }
@@ -214,6 +300,19 @@ class SharedFilesTest {
         ShadowContentResolver.registerProviderInternal("shared-books", provider)
     }
 
+    class BrokenStream : Parcelable {
+        override fun describeContents() = 0
+        override fun writeToParcel(dest: Parcel, flags: Int) {}
+
+        companion object {
+            @JvmField
+            val CREATOR = object : Parcelable.Creator<BrokenStream> {
+                override fun createFromParcel(source: Parcel): BrokenStream = throw BadParcelableException("Unreadable stream extra")
+                override fun newArray(size: Int): Array<BrokenStream?> = arrayOfNulls(size)
+            }
+        }
+    }
+
     class BookProvider : ContentProvider() {
         override fun onCreate() = true
         override fun query(uri: Uri, projection: Array<out String>?, selection: String?, selectionArgs: Array<out String>?, sortOrder: String?): Cursor {
@@ -221,6 +320,8 @@ class SharedFilesTest {
                 "1" -> "BOOK.EPUB"
                 "2" -> "second.pdf"
                 "image" -> "image.jpg"
+                "fb2" -> "Книга.FB2"
+                "other-fb2" -> "second.fb2"
                 else -> "denied.epub"
             }
             return MatrixCursor(arrayOf(OpenableColumns.DISPLAY_NAME)).apply { addRow(arrayOf(name)) }

@@ -52,9 +52,7 @@ import java.util.Date
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        if (savedInstanceState == null) {
-            ViewModelProvider(this)[ConverterViewModel::class.java].receiveSharedFiles(intent)
-        }
+        ViewModelProvider(this)[ConverterViewModel::class.java].receiveInitialIntent(intent)
         enableEdgeToEdge()
         setContent {
             ConverterTheme {
