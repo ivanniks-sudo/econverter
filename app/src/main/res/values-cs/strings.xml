@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="gmail">Gmail</string>
+    <string name="status_gmail_unavailable">Gmail není nainstalován nebo není dostupný</string>
+    <string name="status_gmail_failed">Gmail nelze otevřít s těmito přílohami. Zkontrolujte přístup k souborům a zkuste to znovu.</string>
     <string name="status_share_missing_files">Požadavek na sdílení neobsahuje URI souborů ke čtení</string>
     <string name="status_import_failed">Nelze získat přístup k %1$s souborům; přeskočeno %2$s nepodporovaných souborů. Zkuste sdílení znovu nebo vyberte e-knihy v aplikaci.</string>
     <string name="status_error">Chyba: %1$s</string>

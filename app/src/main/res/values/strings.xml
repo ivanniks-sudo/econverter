@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="gmail">Gmail</string>
+    <string name="status_gmail_unavailable">Gmail is not installed or is unavailable</string>
+    <string name="status_gmail_failed">Could not open Gmail with these attachments. Check file access and try again.</string>
     <string name="status_share_missing_files">No readable file URIs were included in the share request</string>
     <string name="status_import_failed">Could not access %1$s file(s); %2$s unsupported file(s) skipped. Inaccessible files were skipped. Try sharing again or use Select eBooks.</string>
     <string name="status_error">Error: %1$s</string>

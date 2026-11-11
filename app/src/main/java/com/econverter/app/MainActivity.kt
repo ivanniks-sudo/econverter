@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -198,6 +199,18 @@ fun ConverterScreen(vm: ConverterViewModel = viewModel()) {
                                         else -> stringResource(R.string.convert)
                                     },
                                 )
+                            }
+                        }
+                        if (vm.pendingSave || vm.hasSelection) {
+                            OutlinedButton(
+                                onClick = { vm.openGmail(context) },
+                                enabled = !vm.isLoadingSelection && !vm.isConverting && !vm.isSaving && vm.bookMetadata == null,
+                                modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
+                                shape = RoundedCornerShape(8.dp),
+                            ) {
+                                Icon(Icons.Default.Email, contentDescription = null)
+                                Spacer(Modifier.width(8.dp))
+                                Text(stringResource(R.string.gmail))
                             }
                         }
                     }

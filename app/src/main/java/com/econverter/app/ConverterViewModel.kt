@@ -1,5 +1,6 @@
 package com.econverter.app
 
+import android.content.ActivityNotFoundException
 import android.content.ClipData
 import android.content.Context
 import android.content.Intent
@@ -354,6 +355,37 @@ class ConverterViewModel : ViewModel() {
             if (uris.size == 1) putExtra(Intent.EXTRA_STREAM, uris.single()) else putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
         }
         return Intent.createChooser(shareIntent, null)
+    }
+
+    @Suppress("DEPRECATION")
+    internal fun createGmailIntent(context: Context): Intent? {
+        if (isLoadingSelection || isConverting || isSaving || bookMetadata != null) return null
+        val intent = if (pendingSave) {
+            // Reuse output URI grants and the existing shared-file retention policy.
+            createShareIntent(context)?.getParcelableExtra<Intent>(Intent.EXTRA_INTENT) ?: return null
+        } else {
+            if (inputUris.isEmpty()) return null
+            require(inputUris.all { it.scheme == "content" }) { "Only content URIs can be attached" }
+            val uris = ArrayList(inputUris)
+            val types = uris.map { context.contentResolver.getType(it) ?: "application/octet-stream" }.distinct()
+            Intent(if (uris.size == 1) Intent.ACTION_SEND else Intent.ACTION_SEND_MULTIPLE).apply {
+                type = types.singleOrNull() ?: "*/*"
+                clipData = ClipData.newRawUri(null, uris.first()).apply { uris.drop(1).forEach { addItem(ClipData.Item(it)) } }
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                if (uris.size == 1) putExtra(Intent.EXTRA_STREAM, uris.single()) else putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
+            }
+        }
+        return intent.setPackage("com.google.android.gm")
+    }
+
+    fun openGmail(context: Context) {
+        try {
+            createGmailIntent(context)?.let(context::startActivity)
+        } catch (_: ActivityNotFoundException) {
+            status = StatusMessage(R.string.status_gmail_unavailable, isError = true)
+        } catch (_: Exception) {
+            status = StatusMessage(R.string.status_gmail_failed, isError = true)
+        }
     }
 
     fun cancelConversion() {

@@ -19,6 +19,9 @@ Android app for converting e-books individually or in batches with Calibre and b
 2. Optionally open **Conversion options** for Metadata, Typography, Margins, or
    Advanced settings (extra arguments and text removal). Closing a group keeps its values.
 3. Tap **Convert**, then **Save** to a folder or **Share** the results.
+   **Gmail** opens a new message directly in Gmail with the results attached;
+   before conversion, it attaches the selected books instead. Address the message
+   and send it yourself. Gmail must be installed and available.
 
 Each EPUB, AZW3, or MOBI has **Edit metadata**, including in a multi-book queue.
 Choose **Create edited copy**, then **Save** or **Share**; originals and the queue

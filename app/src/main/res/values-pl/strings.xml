@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="gmail">Gmail</string>
+    <string name="status_gmail_unavailable">Gmail nie jest zainstalowany lub jest niedostępny</string>
+    <string name="status_gmail_failed">Nie można otworzyć Gmaila z tymi załącznikami. Sprawdź dostęp do plików i spróbuj ponownie.</string>
     <string name="status_share_missing_files">Żądanie udostępnienia nie zawiera identyfikatorów URI plików do odczytu</string>
     <string name="status_import_failed">Brak dostępu do %1$s plików; pominięto %2$s plików w nieobsługiwanym formacie. Spróbuj udostępnić ponownie lub użyj opcji Wybierz e-booki.</string>
     <string name="status_error">Błąd: %1$s</string>
