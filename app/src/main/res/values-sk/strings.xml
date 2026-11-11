@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="status_share_missing_files">Požiadavka na zdieľanie neobsahuje URI súborov na čítanie</string>
+    <string name="status_import_failed">Nie je možné získať prístup k %1$s súborom; preskočené nepodporované súbory: %2$s. Skúste zdieľanie znova alebo vyberte e-knihy v aplikácii.</string>
     <string name="status_error">Chyba: %1$s</string>
     <string name="status_reading_metadata">Načítanie metadát...</string>
     <string name="status_updating_metadata">Aktualizácia metadát...</string>

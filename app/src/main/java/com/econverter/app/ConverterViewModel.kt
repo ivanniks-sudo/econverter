@@ -85,6 +85,10 @@ class ConverterViewModel : ViewModel() {
     var extraArgs by mutableStateOf("")
     var removeText by mutableStateOf("")
     var status by mutableStateOf(StatusMessage())
+    var isLoadingSelection by mutableStateOf(false)
+        private set
+    internal var pendingSharedUris by mutableStateOf<List<Uri>>(emptyList())
+        private set
     var isConverting by mutableStateOf(false)
     var isCancelling by mutableStateOf(false)
     var isSaving by mutableStateOf(false)
@@ -105,8 +109,8 @@ class ConverterViewModel : ViewModel() {
     val inputFileName: String get() = inputFileNames.firstOrNull() ?: ""
     val metadataFileName: String get() = metadataTarget?.second.orEmpty()
     val unsupportedInputFileNames: List<String> get() = inputFileNames.filterNot(::isInputSupported)
-    val canConvert: Boolean get() = bookMetadata == null && hasSelection && inputUris.size == inputFileNames.size && unsupportedInputFileNames.isEmpty() && outputFormat in outputFormats
-    val canEditMetadata: Boolean get() = bookMetadata == null && hasSelection && inputUris.size == inputFileNames.size && inputFileNames.any { it.substringAfterLast('.', "").lowercase() in BookMetadata.formats } && !isConverting && !isSaving && !pendingSave
+    val canConvert: Boolean get() = !isLoadingSelection && bookMetadata == null && hasSelection && inputUris.size == inputFileNames.size && unsupportedInputFileNames.isEmpty() && outputFormat in outputFormats
+    val canEditMetadata: Boolean get() = !isLoadingSelection && bookMetadata == null && hasSelection && inputUris.size == inputFileNames.size && inputFileNames.any { it.substringAfterLast('.', "").lowercase() in BookMetadata.formats } && !isConverting && !isSaving && !pendingSave
     val conversionProgress: Float?
         get() = when {
             isSaving -> null
@@ -118,7 +122,7 @@ class ConverterViewModel : ViewModel() {
         get() = status.resourceId != 0 && status.resourceId != R.string.loading_selection && !status.isError && !isConverting && !isSaving && !pendingSave && bookMetadata == null
 
     fun selectBackend(value: ConversionBackend, context: android.content.Context? = null) {
-        if (isConverting || isSaving || pendingSave || bookMetadata != null) return
+        if (isLoadingSelection || isConverting || isSaving || pendingSave || bookMetadata != null) return
         backend = value
         if (outputFormat !in outputFormats) outputFormat = EPUB
         status = StatusMessage()
@@ -133,14 +137,14 @@ class ConverterViewModel : ViewModel() {
     }
 
     fun clearSelection() {
-        if (isConverting || isSaving || pendingSave || bookMetadata != null) return
+        if (isLoadingSelection || isConverting || isSaving || pendingSave || bookMetadata != null) return
         inputUris = emptyList()
         inputFileNames = emptyList()
         status = StatusMessage()
     }
 
     fun removeSelectedUri(uri: Uri) {
-        if (isConverting || isSaving || pendingSave || bookMetadata != null) return
+        if (isLoadingSelection || isConverting || isSaving || pendingSave || bookMetadata != null) return
         val index = inputUris.indexOf(uri)
         if (index == -1) return
         inputUris = inputUris.filterIndexed { i, _ -> i != index }
@@ -149,7 +153,7 @@ class ConverterViewModel : ViewModel() {
     }
 
     fun selectHistory(entry: HistoryEntry) {
-        if (isConverting || isSaving || pendingSave || bookMetadata != null || entry.uris.isEmpty()) return
+        if (isLoadingSelection || isConverting || isSaving || pendingSave || bookMetadata != null || entry.uris.isEmpty()) return
         inputUris = entry.uris.toList()
         inputFileNames = entry.fileNames.toList()
         outputFormat = entry.outputFormat
@@ -166,25 +170,76 @@ class ConverterViewModel : ViewModel() {
         }
     }
 
-    fun addSelectedUris(context: android.content.Context, newUris: List<Uri>) {
-        if (isConverting || isSaving || pendingSave || bookMetadata != null) return
-        status = StatusMessage(R.string.loading_selection)
-        viewModelScope.launch(Dispatchers.IO) {
-            val pairs = newUris.map { uri -> uri to getFileName(context, uri) }
+    fun receiveSharedFiles(intent: Intent) {
+        if (intent.action != Intent.ACTION_SEND && intent.action != Intent.ACTION_SEND_MULTIPLE) return
+        try {
+            val uris = sharedFileUris(intent)
+            if (uris.isEmpty()) {
+                status = StatusMessage(R.string.status_share_missing_files, isError = true)
+            } else {
+                pendingSharedUris = (pendingSharedUris + uris).distinct()
+            }
+        } catch (_: RuntimeException) {
+            status = StatusMessage(R.string.status_share_missing_files, isError = true)
+        }
+    }
 
-            withContext(Dispatchers.Main) {
-                if (isConverting || isSaving || pendingSave || bookMetadata != null) return@withContext
-                val validPairs = pairs.filter { isInputSupported(it.second) }
-                val unsupportedCount = newUris.size - validPairs.size
-                if (validPairs.isNotEmpty()) {
-                    inputUris = inputUris + validPairs.map { it.first }
-                    inputFileNames = inputFileNames + validPairs.map { it.second }
+    fun importPendingSharedFiles(context: Context) {
+        if (isLoadingSelection || isConverting || isSaving || pendingSave || bookMetadata != null || pendingSharedUris.isEmpty()) return
+        loadBackendPreference(context)
+        val uris = pendingSharedUris
+        pendingSharedUris = emptyList()
+        addSelectedUris(context, uris, shared = true)
+    }
+
+    fun addSelectedUris(context: Context, newUris: List<Uri>, shared: Boolean = false) {
+        if (isLoadingSelection || isConverting || isSaving || pendingSave || bookMetadata != null) return
+        val candidates = newUris.distinct().filterNot { it in inputUris }
+        if (candidates.isEmpty()) return
+        isLoadingSelection = true
+        status = StatusMessage(R.string.loading_selection)
+        viewModelScope.launch {
+            try {
+                val supportedFormats = inputFormats
+                val (pairs, unsupportedCount, inaccessibleCount) = withContext(Dispatchers.IO) {
+                    val valid = mutableListOf<Pair<Uri, String>>()
+                    var unsupported = 0
+                    var inaccessible = 0
+                    for (uri in candidates) {
+                        try {
+                            if (shared && uri.scheme != "content") {
+                                inaccessible++
+                                continue
+                            }
+                            val name = getFileName(context, uri)
+                            if (name.substringAfterLast('.', "").lowercase() !in supportedFormats) {
+                                unsupported++
+                                continue
+                            }
+                            if (shared) {
+                                val stream = context.contentResolver.openInputStream(uri)
+                                    ?: throw java.io.IOException("No input stream")
+                                stream.use { it.read() }
+                            }
+                            valid += uri to name
+                        } catch (_: Exception) {
+                            inaccessible++
+                        }
+                    }
+                    Triple(valid, unsupported, inaccessible)
                 }
+                if (isConverting || isSaving || pendingSave || bookMetadata != null) return@launch
+                val validPairs = pairs.filterNot { it.first in inputUris }
+                inputUris = inputUris + validPairs.map { it.first }
+                inputFileNames = inputFileNames + validPairs.map { it.second }
                 status = when {
+                    inaccessibleCount > 0 -> StatusMessage(R.string.status_import_failed, listOf(inaccessibleCount.toString(), unsupportedCount.toString()), isError = true)
                     validPairs.isNotEmpty() && unsupportedCount > 0 -> StatusMessage(R.string.status_selected_skipped, listOf(inputUris.size.toString(), unsupportedCount.toString()))
-                    validPairs.isEmpty() && unsupportedCount > 0 -> StatusMessage(R.string.status_unsupported_selection)
+                    validPairs.isEmpty() && unsupportedCount > 0 -> StatusMessage(R.string.status_unsupported_selection, isError = shared)
                     else -> StatusMessage()
                 }
+            } finally {
+                isLoadingSelection = false
             }
         }
     }

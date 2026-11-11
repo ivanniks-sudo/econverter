@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="status_share_missing_files">No readable file URIs were included in the share request</string>
+    <string name="status_import_failed">Could not access %1$s file(s); %2$s unsupported file(s) skipped. Inaccessible files were skipped. Try sharing again or use Select eBooks.</string>
     <string name="status_error">Error: %1$s</string>
     <string name="status_reading_metadata">Reading metadata...</string>
     <string name="status_updating_metadata">Updating metadata...</string>

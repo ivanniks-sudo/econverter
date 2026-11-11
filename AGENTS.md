@@ -13,6 +13,7 @@ Android e-book converter using Calibre (via Chaquopy) and native boko.
 ## Architecture
 
 - **Single Module Android App**: `app/` contains Kotlin UI and worker-process integration; the Python engine ships as a wheel.
+- **Incoming shares**: `MainActivity` receives SEND/SEND_MULTIPLE (including warm launches); `SharedFiles.kt` extracts stream/ClipData URIs. The ViewModel defers shares while busy and imports readable content URIs through the existing selection pipeline. URI grants remain temporary; access failures are reported and conversion still reads via ContentResolver.
 - **Kotlin UI / ViewModel**: `MainActivity.kt` owns `ConverterScreen` and SAF pickers; `ConversionOptions.kt` owns the options form, `ConverterDialogs.kt` owns dialogs and issue reporting, and `ConverterTheme.kt` owns palettes. `ConverterViewModel.kt` holds state and manages selection, conversion, saving, and `FileProvider` sharing.
 - **Python Bridge**: `ConversionService.kt` calls `convert()`, `read_metadata()`, or `update_metadata()` in `:conversion`. `BookMetadata` owns metadata formats and Binder values; the ViewModel retains the clicked book and draft until success or dismissal. Cancellation kills the worker before deleting its run directory.
 - **Native Python Loading**: `InstalledPythonPlatform.kt` redirects bootstrap

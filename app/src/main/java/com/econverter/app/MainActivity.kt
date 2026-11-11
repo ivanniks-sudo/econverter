@@ -1,5 +1,6 @@
 package com.econverter.app
 
+import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -41,6 +42,7 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.delay
 import java.text.DateFormat
@@ -49,6 +51,9 @@ import java.util.Date
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (savedInstanceState == null) {
+            ViewModelProvider(this)[ConverterViewModel::class.java].receiveSharedFiles(intent)
+        }
         enableEdgeToEdge()
         setContent {
             ConverterTheme {
@@ -58,6 +63,12 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        ViewModelProvider(this)[ConverterViewModel::class.java].receiveSharedFiles(intent)
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -65,11 +76,15 @@ class MainActivity : ComponentActivity() {
 fun ConverterScreen(vm: ConverterViewModel = viewModel()) {
     val context = LocalContext.current
     val removeBookLabel = stringResource(R.string.remove_book)
-    val canEdit = !vm.isConverting && !vm.isSaving && !vm.pendingSave && vm.bookMetadata == null
+    val canEdit = !vm.isLoadingSelection && !vm.isConverting && !vm.isSaving && !vm.pendingSave && vm.bookMetadata == null
 
     LaunchedEffect(Unit) {
         vm.loadBackendPreference(context)
         vm.purgeStaleTempFiles(context)
+    }
+
+    LaunchedEffect(vm.pendingSharedUris, vm.isLoadingSelection, vm.isConverting, vm.isSaving, vm.pendingSave, vm.bookMetadata) {
+        vm.importPendingSharedFiles(context)
     }
 
     LaunchedEffect(vm.status, vm.shouldAutoDismissStatus) {

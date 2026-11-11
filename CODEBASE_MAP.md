@@ -41,6 +41,8 @@
 ## Primary Data Flows
 
 1. **Input File Selection**:
+   Android SEND/SEND_MULTIPLE shares enter through `MainActivity.onCreate`/`onNewIntent` and `SharedFiles.kt` (EXTRA_STREAM or ClipData fallback). The ViewModel queues shares while busy, validates content URI read access and supported extensions, and appends unique files to the existing selection. The launcher entrypoint remains available. No filesystem paths or persistent URI permissions are required.
+
    User selects files via Storage Access Framework (`OpenMultipleDocuments`) → `MainActivity.kt` passes Uris to `ConverterViewModel.kt`. History retains selections for the current session; Clear all removes only the selection. Swipe a book left or right (or use its accessibility action) to remove it from the selection without deleting the source. Selection changes are disabled during conversion and saving.
 
 2. **Conversion Execution**:

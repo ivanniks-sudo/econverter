@@ -12,6 +12,10 @@ Android app for converting e-books individually or in batches with Calibre and b
 ## Usage
 
 1. **Select eBooks**, then choose an **Output Format**. **Add eBooks** extends the queue.
+   You can also select one or more books in a file manager (such as Solid Explorer),
+   tap **Share**, and choose **EbookConverter**. Readable supported files are added
+   to the queue; unsupported or inaccessible files are reported. If conversion or
+   saving is in progress, incoming books wait until it finishes.
 2. Optionally open **Conversion options** for Metadata, Typography, Margins, or
    Advanced settings (extra arguments and text removal). Closing a group keeps its values.
 3. Tap **Convert**, then **Save** to a folder or **Share** the results.
