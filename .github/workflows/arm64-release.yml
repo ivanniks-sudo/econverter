@@ -2,6 +2,15 @@ name: Signed ARM64 Release APK
 
 on:
   workflow_dispatch:
+    inputs:
+      source_ref:
+        description: Source branch, stable tag or verified stable commit
+        type: choice
+        default: feat/rar-7z-import
+        options:
+          - feat/rar-7z-import
+          - v1.5.0-archive-support
+          - 02486f72d530e048a0b774ff5298e65a90b1660f
   # Explicit owner-created tag fallback when this workflow is absent from master.
   push:
     tags: ['arm64-test-*']
@@ -17,10 +26,12 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          ref: ${{ inputs.source_ref || github.ref }}
           fetch-depth: 0
           persist-credentials: false
       - name: Validate source and signing configuration
         env:
+          SOURCE_REF: ${{ inputs.source_ref || github.ref }}
           HAVE_KEY: ${{ secrets.KEYSTORE_BASE64 != '' }}
           HAVE_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD != '' }}
           HAVE_ALIAS: ${{ secrets.KEY_ALIAS != '' }}
@@ -30,9 +41,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          case "$GITHUB_REF" in
-            refs/heads/feat/rar-7z-import|refs/tags/arm64-test-*) ;;
-            *) echo 'Select feat/rar-7z-import or an arm64-test-* tag'; exit 1 ;;
+          case "$SOURCE_REF" in
+            feat/rar-7z-import|refs/heads/feat/rar-7z-import|refs/tags/arm64-test-*) ;;
+            v1.5.0-archive-support|02486f72d530e048a0b774ff5298e65a90b1660f)
+              test "$(git rev-parse HEAD)" = 02486f72d530e048a0b774ff5298e65a90b1660f
+              test "$(git rev-parse 'refs/tags/v1.5.0-archive-support^{}')" = 02486f72d530e048a0b774ff5298e65a90b1660f
+              ;;
+            *) echo 'Select an approved source branch, tag or commit'; exit 1 ;;
           esac
           git merge-base --is-ancestor 2c6f2920eae952782fffa287c4fc892beb43549a HEAD
           for present in "$HAVE_KEY" "$HAVE_STORE_PASSWORD" "$HAVE_ALIAS" "$HAVE_KEY_PASSWORD"; do
