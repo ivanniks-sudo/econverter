@@ -77,3 +77,20 @@ Android e-book converter using Calibre (via Chaquopy) and native boko.
 See `SIGNING.md` and `.github/workflows/arm64-release.yml`. Permanent keys must be
 created/retained by the owner locally, never generated in cloud runners. The new
 ARM64 workflow signs outside Gradle and verifies the pinned certificate and ABI.
+
+## Efficient Codex workflow
+
+Apply these principles to all tasks in this repository, unless a task explicitly requires a more exhaustive process.
+
+1. **Reuse established work.** Read only relevant project guidance, research reports, code, and test results. Do not repeat completed investigations without a specific reason.
+2. **Keep scope narrow.** Inspect the files, classes, and components relevant to the current change. Expand the search only when evidence requires it.
+3. **Reuse existing tooling.** Prefer extending existing tests, harnesses, and scripts over building new infrastructure.
+4. **Test proportionately.** Run focused tests while iterating. Run full regression, integration, and artifact audits before a release, merge, or major architectural change, and whenever a relevant safety risk requires it.
+5. **Avoid redundant work.** Do not repeat successful builds, dependency downloads, or unchanged checks without a reason. Use caches where safe.
+6. **Report concisely.** Summarize what changed, which checks actually ran, their results, remaining risks, and any blockers. Write extensive reports only when needed.
+7. **Make meaningful commits.** Group related changes; avoid commits created solely for minor progress updates unless requested.
+8. **Preserve critical guarantees.** Never skip tests that are necessary for security, data integrity, compatibility, user data preservation, or safe lifecycle behavior merely to save resources.
+9. **Avoid scope creep.** Do not add unrelated investigations, refactors, or enhancements.
+10. **Use existing context.** Follow repository instructions and recorded decisions; do not repeatedly reconstruct them.
+
+Efficiency is a preference, not permission to weaken correctness or explicit task requirements.
